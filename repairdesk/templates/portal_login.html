@@ -1,0 +1,35 @@
+{% extends "base_public.html" %}
+{% block title %}Sign in{% endblock %}
+{% block tagline %}Your repairs, in one place{% endblock %}
+{% block body %}
+
+{% if disabled %}
+<div class="panel pad" style="text-align:center;">
+  <h2 style="margin-top:0;">Account sign-in isn't available</h2>
+  <p class="muted">You can still check a repair with your repair number and last name.</p>
+  <a class="btn" href="{{ url_for('track') }}">Check a repair</a>
+</div>
+
+{% elif sent %}
+<div class="panel pad" style="text-align:center;">
+  <div style="font-size:34px; line-height:1;">✉</div>
+  <h2 style="margin:12px 0 6px;">Check your email</h2>
+  <p class="muted" style="margin-top:0;">If <strong>{{ sent_to }}</strong> matches a customer on file, we've sent a secure sign-in link. It works once and expires in {{ 30 }} minutes.</p>
+  <a class="btn ghost" href="{{ url_for('portal_login') }}">Use a different email</a>
+</div>
+
+{% else %}
+<div class="panel pad">
+  <h2 style="margin-top:0;">Sign in to your repairs</h2>
+  <p class="muted" style="margin-top:0;">Enter your email and we'll send you a secure link — no password to remember.</p>
+  <form method="post">
+    <label class="field"><span class="lab">Email</span><input type="email" name="email" autocomplete="email" autofocus required></label>
+    <button class="btn" type="submit" style="width:100%; justify-content:center;">Email me a sign-in link</button>
+  </form>
+</div>
+<p class="alt muted" style="text-align:center; margin-top:16px;">
+  Prefer not to sign in? <a href="{{ url_for('track') }}">Check a single repair</a> with your repair number and last name, or <a href="{{ url_for('request_form') }}">submit a new repair</a>.
+</p>
+{% endif %}
+
+{% endblock %}

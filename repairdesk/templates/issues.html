@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_tagpicker.html" import tagpicker %}
+{% set active = 'issues' %}
+{% block title %}Issues{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Issues</h1><p>Common services and their estimated cost. Link each to the devices it applies to, so customers see the right options on the request form.</p></div></div>
+
+<div class="panel pad" style="max-width:760px; margin-bottom:20px;">
+  <h2>Add an issue</h2>
+  <form method="post" action="{{ url_for('issues_add') }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0; flex:1; min-width:200px;"><span class="lab">Name</span><input type="text" name="name" placeholder="Screen replacement" required></label>
+    <label class="field" style="margin:0;"><span class="lab">Estimated cost</span><input type="text" name="estimated_cost" placeholder="$129 or $50-70" style="width:150px;"></label>
+    <button class="btn" type="submit">Add</button>
+  </form>
+  <label class="field" style="margin-top:10px;"><span class="lab">Description <span class="muted">(shown to customers — helps them pick the right one)</span></span><input type="text" name="description" placeholder="e.g. Front glass + LCD, original-quality part"></label>
+  <div class="help" style="margin-top:4px;">Cost can be a single price (<code>$129</code>) or a range (<code>$50-70</code>). Ranges flow through to the customer's estimated total as a range. A description helps tell apart similar issues across devices.</div>
+</div>
+
+{% set device_options = [] %}{% for d in devices %}{% set _ = device_options.append({'id': d.id, 'name': d.name}) %}{% endfor %}
+
+{% if issues %}
+{% for i in issues %}
+<div class="panel pad" style="max-width:760px; margin-bottom:14px;">
+  <form method="post" action="{{ url_for('issues_update', iid=i.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+      <input type="text" name="name" value="{{ i.name }}" style="flex:1; min-width:200px; font-weight:600;">
+      <input type="text" name="estimated_cost" value="{{ i.estimated_cost }}" placeholder="$129 or $50-70" style="width:130px;">
+      <label style="font-size:13px; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="active" style="width:auto;" {{ 'checked' if i.active }}> active</label>
+      <span class="muted" style="font-size:12px;">{{ i.use_count }}×</span>
+      <button class="btn ghost sm" type="submit">Save</button>
+    </div>
+    <input type="text" name="description" value="{{ i.description }}" placeholder="Description shown to customers (e.g. OEM part, includes calibration)" style="width:100%; margin-bottom:10px;">
+    <div class="field" style="margin:0;">
+      <span class="lab">Applies to devices</span>
+      {% if devices %}{{ tagpicker('device_ids', device_options, links.get(i.id, []), 'Add a device…') }}{% else %}<p class="muted" style="margin:4px 0 0;">No devices yet — add some on the <a href="{{ url_for('devices_page') }}">Devices</a> page.</p>{% endif %}
+    </div>
+  </form>
+
+  <div class="field" style="margin:12px 0 0;">
+    <span class="lab">Photos / GIFs / audio <span class="muted">(shown to customers on the request form)</span></span>
+    {% set ims = media.get(i.id, []) %}
+    {% if ims %}
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+      {% for m in ims %}
+      <div style="border:1px solid var(--border,#e3e3e8); border-radius:8px; padding:6px; max-width:150px;">
+        {% if m.kind == 'image' %}<img src="{{ url_for('issue_media_serve', mid=m.id) }}" style="max-width:136px; max-height:100px; display:block; border-radius:4px;">
+        {% else %}<audio controls style="width:136px;"><source src="{{ url_for('issue_media_serve', mid=m.id) }}"></audio>{% endif %}
+        <form method="post" action="{{ url_for('issue_media_delete', mid=m.id) }}" style="margin:6px 0 0; text-align:center;">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">Remove</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" action="{{ url_for('issue_media_add', iid=i.id) }}" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <input type="file" name="media" accept=".gif,.png,.jpg,.jpeg,.webp,.mp3,.wav,.ogg,.m4a" required>
+      <button class="btn ghost sm" type="submit">Upload</button>
+    </form>
+  </div>
+
+  <form method="post" action="{{ url_for('issues_delete', iid=i.id) }}" onsubmit="return confirm('Delete this issue?');" style="margin-top:12px;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn danger sm" type="submit">Delete issue</button>
+  </form>
+</div>
+{% endfor %}
+{% else %}
+<div class="panel" style="max-width:760px;"><div class="empty">No issues yet. Add your common services above (e.g. screen replacement, battery, water damage).</div></div>
+{% endif %}
+
+{% endblock %}

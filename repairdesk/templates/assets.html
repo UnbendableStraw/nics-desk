@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% set active = 'assets' %}
+{% block title %}Assets{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Assets</h1><p>Devices and serial numbers, tied to a customer. Transfer one when a device changes hands.</p></div></div>
+
+<div class="panel pad" style="margin-bottom:20px;">
+  <h2>Add an asset</h2>
+  <form method="post" action="{{ url_for('assets_add') }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0;"><span class="lab">Owner</span>
+      <select name="customer_id" required style="min-width:200px;">
+        <option value="">— Pick a customer —</option>
+        {% for c in customers %}<option value="{{ c.id }}">{{ c.last_name }}, {{ c.first_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="field" style="margin:0;"><span class="lab">Device</span><input type="text" name="device" placeholder="iPhone 13"></label>
+    <label class="field" style="margin:0;"><span class="lab">Serial</span><input type="text" name="serial" placeholder="C02XL0…"></label>
+    <label class="field" style="margin:0; flex:1; min-width:140px;"><span class="lab">Notes</span><input type="text" name="notes"></label>
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+
+<form class="toolbar" method="get">
+  <input class="grow" type="search" name="q" value="{{ q }}" placeholder="Search serial, device, or owner…">
+  <button class="btn ghost" type="submit">Search</button>
+</form>
+
+{% if assets %}
+<table class="tickets">
+  <thead><tr><th>Device</th><th>Serial</th><th>Owner</th><th class="hide-sm">Repairs</th><th>Manage</th></tr></thead>
+  <tbody>
+    {% for a in assets %}
+    <tr>
+      <td colspan="5" style="padding:12px 16px;">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <form method="post" action="{{ url_for('assets_update', aid=a.id) }}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="text" name="device" value="{{ a.device }}" placeholder="device" style="width:150px;">
+            <input type="text" name="serial" value="{{ a.serial }}" placeholder="serial" style="width:160px; font-family:var(--mono); font-size:13px;">
+            <input type="text" name="notes" value="{{ a.notes }}" placeholder="notes" style="width:140px;">
+            <button class="btn ghost sm" type="submit">Save</button>
+          </form>
+          <span class="muted" style="font-size:13px;">{{ a.last_name }}, {{ a.first_name }} · {{ a.repair_count }} repair(s)</span>
+          <form method="post" action="{{ url_for('assets_transfer', aid=a.id) }}" style="display:flex; gap:6px; align-items:center; margin:0;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <select name="customer_id" required>
+              <option value="">Transfer to…</option>
+              {% for c in customers %}{% if c.id != a.customer_id %}<option value="{{ c.id }}">{{ c.last_name }}, {{ c.first_name }}</option>{% endif %}{% endfor %}
+            </select>
+            <button class="btn ghost sm" type="submit">Transfer</button>
+          </form>
+          <form method="post" action="{{ url_for('assets_delete', aid=a.id) }}" onsubmit="return confirm('Delete this asset?');" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="btn danger sm" type="submit">Delete</button>
+          </form>
+        </div>
+        <div style="margin-top:10px;">
+          {% set ims = media.get(a.id, []) %}
+          {% if ims %}
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px;">
+            {% for m in ims %}
+            <div style="border:1px solid var(--border,#e3e3e8); border-radius:8px; padding:6px; text-align:center;">
+              <img src="{{ url_for('asset_media_serve', mid=m.id) }}" style="max-width:130px; max-height:100px; display:block; border-radius:4px;">
+              {% if m.label %}<div class="muted" style="font-size:11px; max-width:130px;">{{ m.label }}</div>{% endif %}
+              <form method="post" action="{{ url_for('asset_media_delete', mid=m.id) }}" style="margin:4px 0 0;">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">Remove</button>
+              </form>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <form method="post" action="{{ url_for('asset_media_add', aid=a.id) }}" enctype="multipart/form-data" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="file" name="media" accept=".png,.jpg,.jpeg,.gif,.webp" required>
+            <input type="text" name="label" placeholder="label (e.g. On arrival — back)" style="width:200px;">
+            <button class="btn ghost sm" type="submit">Add photo</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="panel"><div class="empty">{% if q %}No assets match.{% else %}No assets yet. Add one above, or enter a serial when creating a repair and it's logged here automatically.{% endif %}</div></div>
+{% endif %}
+
+{% endblock %}

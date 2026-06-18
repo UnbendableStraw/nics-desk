@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set active = 'customers' %}
+{% block title %}Customers{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Customers</h1><p>{{ customers|length }} on file.</p></div></div>
+
+{% if can('customers.manage') %}
+<div class="panel pad" style="margin-bottom:20px;">
+  <h2>Import from Google Sheets</h2>
+  <p class="muted" style="margin-top:0;">In your sheet choose <strong>File → Download → CSV</strong>, then upload it here. Columns like <em>Name / First / Last / Phone / Email</em> are detected automatically. Duplicates (same phone) are skipped.</p>
+  <form method="post" action="{{ url_for('customers_import') }}" enctype="multipart/form-data" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <input type="file" name="file" accept=".csv,text/csv" required style="max-width:320px;">
+    <button class="btn" type="submit">Import CSV</button>
+  </form>
+</div>
+{% endif %}
+
+{% if customers %}
+<table class="tickets">
+  <thead><tr><th>Name</th><th>Phone</th><th class="hide-sm">Email</th><th>Assets</th><th>Repairs</th></tr></thead>
+  <tbody>
+    {% for c in customers %}
+    <tr onclick="location='{{ url_for('customer_detail', cid=c.id) }}'" style="cursor:pointer;">
+      <td>{{ c.last_name }}{% if c.first_name %}, {{ c.first_name }}{% endif %}</td>
+      <td class="mono" style="font-family:var(--mono); font-size:13px;">{{ c.phone or '—' }}</td>
+      <td class="hide-sm muted">{{ c.email or '—' }}</td>
+      <td>{{ c.asset_count }}</td>
+      <td>{{ c.repair_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="panel"><div class="empty">No customers yet. Import your sheet above, or they'll be added as you create repairs.</div></div>
+{% endif %}
+
+{% endblock %}

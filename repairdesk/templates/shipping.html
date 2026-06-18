@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% from "_tagpicker.html" import tagpicker %}
+{% set active = 'shipping' %}
+{% block title %}Shipping options{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Shipping &amp; handling</h1>
+  <p>How a device gets <strong>to you</strong> and back <strong>to the customer</strong>. These fill the dropdowns on tickets and the customer request form. Set a cost to fold it into the estimate (leave 0 for free).</p></div></div>
+
+<div class="panel pad" style="max-width:900px; margin-bottom:18px; background:var(--surface-2,#f5f5f7);">
+  <p class="muted" style="margin:0;">
+    <strong>Linked devices:</strong> leave an option's device list empty and it applies to <em>every</em> device. Add devices to restrict it — the request form then only offers that option when the customer's chosen device(s) all support it.<br>
+    <strong>Needs address:</strong> tick it for any option that requires a mailing address (e.g. ship-back). The request form shows and requires the address fields whenever a chosen option needs one.
+    {% if device_count == 0 %}<br><em>Tip: you have no active devices yet, so every option applies to all devices until you add some on the Devices page.</em>{% endif %}
+  </p>
+</div>
+
+{% macro option_card(m) %}
+<div class="panel pad" style="margin-bottom:12px;">
+  <form method="post" action="{{ url_for('shipping_update', mid=m.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      <label class="field" style="margin:0; flex:1; min-width:180px;"><span class="lab">Name</span>
+        <input type="text" name="label" value="{{ m.label }}" required></label>
+      <label class="field" style="margin:0; width:80px;"><span class="lab">Cost</span>
+        <input type="text" name="cost" value="{{ m.cost }}" placeholder="0"></label>
+      <label class="field" style="margin:0; width:84px;"><span class="lab">Carrier</span>
+        <input type="text" name="carrier" value="{{ m.carrier }}" placeholder="USPS"></label>
+      <label class="field" style="margin:0; width:120px;"><span class="lab">Est. days</span>
+        <span style="display:inline-flex; align-items:center; gap:3px;">
+          <input type="number" name="days_min" value="{{ m.days_min or '' }}" min="0" placeholder="2" style="width:50px;">–<input type="number" name="days_max" value="{{ m.days_max or '' }}" min="0" placeholder="3" style="width:50px;"></span></label>
+    </div>
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap; margin:10px 0 4px;">
+      <label class="check" style="margin:0;"><input type="checkbox" name="active" {{ 'checked' if m.active }}> Active</label>
+      <label class="check" style="margin:0;" title="Generates a shipping label you upload on the ticket"><input type="checkbox" name="is_shipping" {{ 'checked' if m.is_shipping }}> Needs a shipping label</label>
+      <label class="check" style="margin:0;" title="Offer the customer a scannable QR (vs a printable PDF)"><input type="checkbox" name="supports_qr" {{ 'checked' if m.supports_qr }}> Can use QR label</label>
+      <label class="check" style="margin:0;" title="Require the customer's mailing address when this is chosen"><input type="checkbox" name="requires_address" {{ 'checked' if m.requires_address }}> Needs mailing address</label>
+    </div>
+
+    <div class="lab" style="margin-top:8px;">Linked devices <span class="muted" style="font-weight:400;">(empty = all devices)</span></div>
+    {% if device_opts %}
+      {{ tagpicker('device_ids', device_opts, method_links.get(m.id, []), 'Restrict to a device…') }}
+    {% else %}
+      <p class="muted" style="margin:4px 0 0;">No active devices to link yet — this applies to everything.</p>
+    {% endif %}
+
+    <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+      <button class="btn ghost sm" type="submit">Save</button>
+    </div>
+  </form>
+  <form method="post" action="{{ url_for('shipping_delete', mid=m.id) }}" onsubmit="return confirm('Delete “{{ m.label }}”?');" style="display:inline; margin:6px 0 0;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn danger sm" type="submit">Delete</button>
+  </form>
+</div>
+{% endmacro %}
+
+{% macro add_form(direction, placeholder) %}
+<form method="post" action="{{ url_for('shipping_add') }}" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-top:6px;">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="direction" value="{{ direction }}">
+  <label class="field" style="margin:0; flex:1; min-width:170px;"><span class="lab">New option</span><input type="text" name="label" placeholder="{{ placeholder }}"></label>
+  <label class="field" style="margin:0; width:70px;"><span class="lab">Cost</span><input type="text" name="cost" placeholder="0"></label>
+  <span style="display:inline-flex; align-items:center; gap:3px; font-size:11px; padding-bottom:8px;"><input type="number" name="days_min" min="0" placeholder="2" style="width:46px;">–<input type="number" name="days_max" min="0" placeholder="3" style="width:46px;">d</span>
+  <label class="check" style="margin:0 0 8px;"><input type="checkbox" name="is_shipping"> label</label>
+  <label class="check" style="margin:0 0 8px;"><input type="checkbox" name="supports_qr"> QR</label>
+  <label class="check" style="margin:0 0 8px;"><input type="checkbox" name="requires_address"> addr</label>
+  <button class="btn sm" type="submit" style="margin-bottom:2px;">Add</button>
+</form>
+<p class="muted" style="font-size:12px; margin:4px 0 0;">Add it first, then link devices on its card above.</p>
+{% endmacro %}
+
+<div class="row" style="align-items:flex-start; gap:20px;">
+  <div style="flex:1; min-width:320px;">
+    <h2>Getting it to you <span class="muted" style="font-weight:400; font-size:14px;">(inbound)</span></h2>
+    {% for m in methods_in %}{{ option_card(m) }}{% endfor %}
+    {{ add_form('in', 'Ship In with USPS Priority') }}
+  </div>
+  <div style="flex:1; min-width:320px;">
+    <h2>Getting it back <span class="muted" style="font-weight:400; font-size:14px;">(outbound)</span></h2>
+    {% for m in methods_out %}{{ option_card(m) }}{% endfor %}
+    {{ add_form('out', 'Ship back with USPS Priority') }}
+  </div>
+</div>
+
+{% endblock %}

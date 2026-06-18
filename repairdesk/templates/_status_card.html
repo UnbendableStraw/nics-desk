@@ -1,0 +1,45 @@
+<div class="panel pad">
+  <div class="status-hero">
+    <div class="num">{{ result.repair_number }}</div>
+    {% set c = STATUS_COLORS.get(result.status, 'slate') %}
+    <div><span class="pill {{ c }}"><span class="dot"></span>{{ result.status }}</span></div>
+  </div>
+
+  <dl class="kv" style="margin-top:8px;">
+    <dt>Name</dt><dd>{{ result.first_name }} {{ result.last_name }}</dd>
+    {% if result.device %}<dt>Device</dt><dd>{{ result.device }}</dd>{% endif %}
+    {% if result.issue_names %}<dt>Service</dt><dd>{{ result.issue_names }}</dd>{% endif %}
+    {% if result.issue %}<dt>Details</dt><dd>{{ result.issue }}</dd>{% endif %}
+    {% if result.inbound_method %}<dt>Drop-off</dt><dd>{{ result.inbound_method }}</dd>{% endif %}
+    {% if result.outbound_method %}<dt>Return</dt><dd>{{ result.outbound_method }}</dd>{% endif %}
+    {% if est %}<dt>Estimated total</dt><dd>{{ est }}</dd>{% endif %}
+  </dl>
+
+  {% if asset_photos %}
+  <h2 style="margin:20px 0 10px;">Condition photos</h2>
+  <p class="muted" style="margin:-4px 0 12px; font-size:13px;">Photos we took of your device.</p>
+  <div style="display:flex; flex-wrap:wrap; gap:10px;">
+    {% for p in asset_photos %}
+    <figure style="margin:0; width:140px;">
+      <a href="{{ url_for('repair_photo', token=result.public_token, mid=p.id) }}" target="_blank" rel="noopener">
+        <img src="{{ url_for('repair_photo', token=result.public_token, mid=p.id) }}" alt="{{ p.label or 'Condition photo' }}"
+             style="width:140px; height:140px; object-fit:cover; border-radius:10px; border:1px solid var(--border,#ddd);">
+      </a>
+      {% if p.label %}<figcaption class="muted" style="font-size:12px; margin-top:4px; text-align:center;">{{ p.label }}</figcaption>{% endif %}
+    </figure>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if history %}
+  <h2 style="margin:20px 0 12px;">Progress</h2>
+  <ul class="timeline">
+    {% for u in history|reverse %}
+      <li>
+        <div class="when">{{ fmt_dt(u.created_at) }}</div>
+        <div class="what">{% if u.status %}<strong>{{ u.status }}</strong>{% endif %}{% if u.note and u.note != 'Ticket created.' %} — {{ u.note }}{% endif %}</div>
+      </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

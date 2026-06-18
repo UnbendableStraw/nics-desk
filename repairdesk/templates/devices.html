@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_tagpicker.html" import tagpicker %}
+{% set active = 'devices' %}
+{% block title %}Devices{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Devices</h1><p>Device models you service. Link the issues and additional services that apply to each — customers picking that device on the request form see exactly those options with prices.</p></div></div>
+
+<div class="panel pad" style="max-width:820px; margin-bottom:20px;">
+  <h2>Add a device</h2>
+  <form method="post" action="{{ url_for('devices_add') }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0; flex:1; min-width:220px;"><span class="lab">Device name</span><input type="text" name="name" placeholder="Apple HomePod" required></label>
+    <label class="field" style="margin:0;"><span class="lab">Ticket prefix</span>
+      <select name="prefix_id" style="min-width:150px;">
+        <option value="">Default ({{ prefixes|selectattr('id','equalto',default_prefix_id|int)|map(attribute='code')|first or 'NEW' }})</option>
+        {% for p in prefixes %}<option value="{{ p.id }}">{{ p.code }} — {{ p.label or p.code }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn" type="submit">Add</button>
+  </form>
+  <div class="help" style="margin-top:8px;">A device's <strong>ticket prefix</strong> decides its repair number — pick "AHP" for Apple HomePod and its tickets become <span class="rnum">AHP-5005</span>. Manage prefixes &amp; starting numbers under <a href="{{ url_for('settings_page') }}">Settings → Device types</a>.</div>
+  {% if not issues and not services %}<div class="help" style="margin-top:10px;">Tip: add some <a href="{{ url_for('issues_page') }}">Issues</a> and <a href="{{ url_for('services_page') }}">Services</a> first, then link them here.</div>{% endif %}
+</div>
+
+{% set issue_options = [] %}{% for i in issues %}{% set _ = issue_options.append({'id': i.id, 'name': i.name, 'cost_label': i.estimated_cost}) %}{% endfor %}
+{% set service_options = [] %}{% for s in services %}{% set _ = service_options.append({'id': s.id, 'name': s.name, 'cost_label': s.cost}) %}{% endfor %}
+
+{% if devices %}
+{% for d in devices %}
+<div class="panel pad" style="max-width:820px; margin-bottom:16px;">
+  <form method="post" action="{{ url_for('devices_update', did=d.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+      <input type="text" name="name" value="{{ d.name }}" style="flex:1; min-width:200px; font-weight:600;">
+      <label class="field" style="margin:0;"><span class="lab" style="font-size:11px;">Ticket prefix</span>
+        <select name="prefix_id" style="min-width:140px;">
+          <option value="" {{ 'selected' if not d.prefix_id }}>Default</option>
+          {% for p in prefixes %}<option value="{{ p.id }}" {{ 'selected' if d.prefix_id==p.id }}>{{ p.code }} — {{ p.label or p.code }}</option>{% endfor %}
+        </select>
+      </label>
+      <label style="font-size:13px; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="active" style="width:auto;" {{ 'checked' if d.active }}> active</label>
+      <button class="btn ghost sm" type="submit">Save</button>
+    </div>
+    <div class="row" style="align-items:flex-start;">
+      <div class="field" style="flex:1; min-width:240px; margin:0;">
+        <span class="lab">Issues for this device</span>
+        {% if issues %}{{ tagpicker('issue_ids', issue_options, issue_links.get(d.id, []), 'Add an issue…') }}{% else %}<p class="muted" style="margin:4px 0 0;">No issues yet.</p>{% endif %}
+      </div>
+      <div class="field" style="flex:1; min-width:240px; margin:0;">
+        <span class="lab">Additional services for this device</span>
+        {% if services %}{{ tagpicker('service_ids', service_options, service_links.get(d.id, []), 'Add a service…') }}{% else %}<p class="muted" style="margin:4px 0 0;">No services yet.</p>{% endif %}
+      </div>
+    </div>
+  </form>
+  <form method="post" action="{{ url_for('devices_delete', did=d.id) }}" onsubmit="return confirm('Delete device {{ d.name }}?');" style="margin-top:12px;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn danger sm" type="submit">Delete device</button>
+  </form>
+</div>
+{% endfor %}
+{% else %}
+<div class="panel" style="max-width:820px;"><div class="empty">No devices yet. Add the models you commonly repair (e.g. iPhone 13, MacBook Air).</div></div>
+{% endif %}
+
+{% endblock %}

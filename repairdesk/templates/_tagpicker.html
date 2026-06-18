@@ -1,0 +1,10 @@
+{# Renders a searchable chip/tag picker. `options` = list of {id,name,cost_label};
+   `selected` = iterable of ids. Submits hidden inputs named `field`. #}
+{% macro tagpicker(field, options, selected, placeholder='Search to add…') -%}
+<div class="tagpicker" data-field="{{ field }}" data-placeholder="{{ placeholder }}"
+     data-options='{{ options|tojson }}' data-selected='{{ (selected|list)|tojson }}'></div>
+{%- endmacro %}
+
+{% macro issue_opts(issues) -%}
+{%- set o = [] -%}{%- for i in issues -%}{%- set _ = o.append({'id': i.id, 'name': i.name, 'cost_label': i.estimated_cost}) -%}{%- endfor -%}{{ o|tojson }}
+{%- endmacro %}

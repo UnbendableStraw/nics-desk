@@ -1,0 +1,62 @@
+{% extends "base_public.html" %}
+{% block title %}Your repairs{% endblock %}
+{% block tagline %}Welcome back{% if cust.first_name %}, {{ cust.first_name }}{% endif %}{% endblock %}
+{% block body %}
+
+<div class="panel pad" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+  <div>
+    <div style="font-weight:600;">{{ cust.first_name }} {{ cust.last_name }}</div>
+    <div class="muted" style="font-size:13px;">{{ cust.email }}</div>
+  </div>
+  <div style="display:flex; gap:8px;">
+    <a class="btn" href="{{ url_for('request_form') }}">＋ New repair</a>
+    <form method="post" action="{{ url_for('portal_logout') }}" style="margin:0;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button class="btn ghost" type="submit">Sign out</button>
+    </form>
+  </div>
+</div>
+
+<div class="panel pad" style="margin-bottom:14px;">
+  <h2 style="margin-top:0;">Your repairs</h2>
+  {% if rows %}
+  <table class="tickets">
+    <thead><tr><th>#</th><th>Device</th><th>Status</th><th class="hide-sm">Estimate</th><th></th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      {% set r = row.r %}
+      <tr onclick="location='{{ url_for('repair_token', token=r.public_token) }}'" style="cursor:pointer;">
+        <td><span class="rnum">{{ r.repair_number }}</span>{% if r.warranty_of %} <span class="muted" style="font-size:11px;">(warranty)</span>{% endif %}</td>
+        <td>{{ r.device or '—' }}{% if r.issue_names %}<div class="muted" style="font-size:12px;">{{ r.issue_names }}</div>{% endif %}</td>
+        <td>{% set col = STATUS_COLORS.get(r.status, 'slate') %}<span class="pill {{ col }}"><span class="dot"></span>{{ r.status }}</span></td>
+        <td class="hide-sm">{{ row.est or '—' }}</td>
+        <td onclick="event.stopPropagation()" style="text-align:right;">
+          {% if not r.warranty_of %}
+          <form method="post" action="{{ url_for('portal_warranty', rid=r.id) }}" onsubmit="return confirm('Start a warranty repair for {{ r.device or 'this device' }}? We'll create a new ticket linked to {{ r.repair_number }}.');" style="margin:0;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="btn ghost sm" type="submit">Warranty</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" style="font-size:12px; margin:10px 0 0;">Had a problem with a completed repair? Use <strong>Warranty</strong> to start a follow-up request linked to the original.</p>
+  {% else %}
+  <p class="muted" style="margin:0;">No repairs yet. <a href="{{ url_for('request_form') }}">Submit your first one</a>.</p>
+  {% endif %}
+</div>
+
+{% if assets %}
+<div class="panel pad">
+  <h2 style="margin-top:0;">Your devices on file</h2>
+  <p class="muted" style="margin-top:0; font-size:13px;">Devices we've logged for you by serial number.</p>
+  <table class="tickets">
+    <thead><tr><th>Device</th><th>Serial</th></tr></thead>
+    <tbody>{% for a in assets %}<tr><td>{{ a.device or '—' }}</td><td style="font-family:var(--mono); font-size:13px;">{{ a.serial }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

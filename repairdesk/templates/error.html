@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ code }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card" style="text-align:center;">
+    <div class="rnum" style="font-size:40px;">{{ code }}</div>
+    <p class="muted">{{ message }}</p>
+    {% if is_admin %}<a class="btn ghost" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    {% else %}<a class="btn ghost" href="{{ url_for('track') }}">Go to repair lookup</a>{% endif %}
+  </div>
+</div>
+</body>
+</html>

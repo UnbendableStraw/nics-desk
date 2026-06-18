@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ shop_name }}{% endblock %} · RepairDesk</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">R</div>
+      <div class="name">{{ shop_name }}<small>RepairDesk</small></div>
+    </div>
+    <nav class="nav">
+      <a href="{{ url_for('dashboard') }}" class="{{ 'active' if active=='dashboard' }}"><span class="ico">▤</span><span class="txt">Repairs</span></a>
+      <a href="{{ url_for('repair_new') }}" class="{{ 'active' if active=='new' }}"><span class="ico">＋</span><span class="txt">New repair</span></a>
+      <a href="{{ url_for('customers') }}" class="{{ 'active' if active=='customers' }}"><span class="ico">☷</span><span class="txt">Customers</span></a>
+      <a href="{{ url_for('assets_page') }}" class="{{ 'active' if active=='assets' }}"><span class="ico">▢</span><span class="txt">Assets</span></a>
+      {% if can('catalog') %}<a href="{{ url_for('devices_page') }}" class="{{ 'active' if active=='devices' }}"><span class="ico">▤</span><span class="txt">Devices</span></a>
+      <a href="{{ url_for('issues_page') }}" class="{{ 'active' if active=='issues' }}"><span class="ico">✱</span><span class="txt">Issues</span></a>
+      <a href="{{ url_for('services_page') }}" class="{{ 'active' if active=='services' }}"><span class="ico">✚</span><span class="txt">Services</span></a>
+      <a href="{{ url_for('shipping_page') }}" class="{{ 'active' if active=='shipping' }}"><span class="ico">▦</span><span class="txt">Shipping</span></a>
+      <a href="{{ url_for('templates_page') }}" class="{{ 'active' if active=='templates' }}"><span class="ico">✉</span><span class="txt">Templates</span></a>{% endif %}
+      {% if can('settings') %}<a href="{{ url_for('settings_page') }}" class="{{ 'active' if active=='settings' }}"><span class="ico">⚙</span><span class="txt">Settings</span></a>{% endif %}
+      {% if can('users') %}<a href="{{ url_for('users_page') }}" class="{{ 'active' if active=='users' }}"><span class="ico">☻</span><span class="txt">Users</span></a>{% endif %}
+    </nav>
+    <div class="spacer"></div>
+    {% if current_user %}
+    <div class="foot" style="margin-bottom:4px;">{{ current_user.name or current_user.username }} · {{ role_labels.get(current_user.role, current_user.role) }}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('logout') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button class="linkbtn" type="submit">Sign out</button>
+    </form>
+    <div class="foot">Data lives on this Mac only.</div>
+  </aside>
+
+  <main class="main">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+        <div class="flash {{ 'ok' if cat=='ok' else 'error' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+  </main>
+</div>
+
+<style>
+.tagpicker { border:1px solid var(--border,#e3e3e8); border-radius:10px; padding:8px; background:var(--surface,#fff); }
+.tagpicker .chips { display:flex; flex-wrap:wrap; gap:6px; }
+.tagpicker .chip { display:inline-flex; align-items:center; gap:6px; background:var(--surface-2,#f1f1f4);
+  border:1px solid var(--border,#e3e3e8); border-radius:999px; padding:4px 6px 4px 11px; font-size:13px; }
+.tagpicker .chip button { border:none; background:none; cursor:pointer; font-size:14px; line-height:1; color:var(--muted,#888); padding:0 2px; }
+.tagpicker .chip button:hover { color:var(--danger,#c0392b); }
+.tagpicker .tp-none { color:var(--muted,#888); font-size:13px; padding:2px 4px; }
+.tagpicker .tp-search { position:relative; margin-top:8px; }
+.tagpicker .tp-search input { width:100%; }
+.tagpicker .tp-menu { position:absolute; z-index:30; left:0; right:0; top:100%; margin-top:2px; max-height:210px;
+  overflow:auto; background:var(--surface,#fff); border:1px solid var(--border,#e3e3e8); border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.10); display:none; }
+.tagpicker .tp-menu.open { display:block; }
+.tagpicker .tp-opt { display:block; width:100%; text-align:left; border:none; background:none; padding:8px 12px; cursor:pointer; font-size:14px; }
+.tagpicker .tp-opt:hover, .tagpicker .tp-opt.active { background:var(--surface-2,#f1f1f4); }
+.tagpicker .tp-empty { padding:8px 12px; color:var(--muted,#888); font-size:13px; }
+</style>
+<script>
+(function () {
+  function initPicker(el) {
+    var field = el.dataset.field;
+    var options = JSON.parse(el.dataset.options || "[]");
+    var selected = JSON.parse(el.dataset.selected || "[]").map(String);
+    var placeholder = el.dataset.placeholder || "Search to add…";
+    var byId = {}; options.forEach(function (o) { byId[String(o.id)] = o; });
+
+    var chips = document.createElement("div"); chips.className = "chips";
+    var search = document.createElement("div"); search.className = "tp-search";
+    var input = document.createElement("input"); input.type = "text"; input.placeholder = placeholder; input.autocomplete = "off";
+    var menu = document.createElement("div"); menu.className = "tp-menu";
+    search.appendChild(input); search.appendChild(menu);
+    el.appendChild(chips); el.appendChild(search);
+
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function renderChips() {
+      chips.innerHTML = "";
+      if (!selected.length) { var n=document.createElement('div'); n.className='tp-none'; n.textContent='None yet — search below to add.'; chips.appendChild(n); return; }
+      selected.forEach(function (id) {
+        var o = byId[id]; if (!o) return;
+        var chip = document.createElement("span"); chip.className = "chip";
+        chip.innerHTML = esc(o.name) + (o.cost_label ? ' <span class="muted" style="font-size:11px">'+esc(o.cost_label)+'</span>' : '');
+        var x = document.createElement("button"); x.type = "button"; x.textContent = "×";
+        x.onclick = function () { selected = selected.filter(function (s) { return s !== id; }); sync(); };
+        chip.appendChild(x);
+        var hid = document.createElement("input"); hid.type = "hidden"; hid.name = field; hid.value = id;
+        chip.appendChild(hid);
+        chips.appendChild(chip);
+      });
+    }
+    function renderMenu() {
+      var q = input.value.toLowerCase().trim();
+      var avail = options.filter(function (o) { return selected.indexOf(String(o.id)) < 0 &&
+        (!q || o.name.toLowerCase().indexOf(q) >= 0); });
+      menu.innerHTML = "";
+      if (!avail.length) { var e=document.createElement('div'); e.className='tp-empty'; e.textContent = q ? 'No matches.' : 'All added.'; menu.appendChild(e); return; }
+      avail.slice(0, 40).forEach(function (o) {
+        var b = document.createElement("button"); b.type = "button"; b.className = "tp-opt";
+        b.innerHTML = esc(o.name) + (o.cost_label ? ' · <span class="muted">'+esc(o.cost_label)+'</span>' : '');
+        b.onclick = function () { selected.push(String(o.id)); input.value = ""; sync(); input.focus(); };
+        menu.appendChild(b);
+      });
+    }
+    function sync() { renderChips(); renderMenu(); }
+    input.addEventListener("focus", function () { renderMenu(); menu.classList.add("open"); });
+    input.addEventListener("input", function () { renderMenu(); menu.classList.add("open"); });
+    document.addEventListener("click", function (e) { if (!el.contains(e.target)) menu.classList.remove("open"); });
+    sync();
+  }
+  document.querySelectorAll(".tagpicker").forEach(initPicker);
+})();
+</script>
+</body>
+</html>

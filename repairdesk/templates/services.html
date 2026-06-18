@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_tagpicker.html" import tagpicker %}
+{% set active = 'services' %}
+{% block title %}Additional services{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Additional services</h1><p>Optional extras customers can add to a request — deep cleaning, custom colors, mailing a packing kit, and so on. Each has a cost, and is linked to the devices it's offered for.</p></div></div>
+
+<div class="panel pad" style="max-width:760px; margin-bottom:20px;">
+  <h2>Add a service</h2>
+  <form method="post" action="{{ url_for('services_add') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      <label class="field" style="margin:0; flex:1; min-width:200px;"><span class="lab">Name</span><input type="text" name="name" placeholder="Deep clean" required></label>
+      <label class="field" style="margin:0;"><span class="lab">Cost</span><input type="text" name="cost" placeholder="$25 or $20-40" style="width:140px;"></label>
+      <button class="btn" type="submit">Add</button>
+    </div>
+    <label class="field" style="margin-top:10px;"><span class="lab">Short description <span class="muted">(shown to customers)</span></span><input type="text" name="description" placeholder="We sanitize and detail the device before return."></label>
+  </form>
+</div>
+
+{% set device_options = [] %}{% for d in devices %}{% set _ = device_options.append({'id': d.id, 'name': d.name}) %}{% endfor %}
+
+{% if services %}
+{% for s in services %}
+<div class="panel pad" style="max-width:760px; margin-bottom:12px;">
+  <form method="post" action="{{ url_for('services_update', sid=s.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="text" name="name" value="{{ s.name }}" style="flex:1; min-width:180px; font-weight:600;">
+      <input type="text" name="cost" value="{{ s.cost }}" placeholder="$25 or $20-40" style="width:130px;">
+      <label style="font-size:13px; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="active" style="width:auto;" {{ 'checked' if s.active }}> active</label>
+      <span class="muted" style="font-size:12px;">{{ s.use_count }}×</span>
+      <button class="btn ghost sm" type="submit">Save</button>
+    </div>
+    <input type="text" name="description" value="{{ s.description }}" placeholder="Short description shown to customers" style="margin-top:8px; width:100%;">
+    <div class="field" style="margin:10px 0 0;">
+      <span class="lab">Offered for devices</span>
+      {% if devices %}{{ tagpicker('device_ids', device_options, links.get(s.id, []), 'Add a device…') }}{% else %}<p class="muted" style="margin:4px 0 0;">No devices yet — add some on the <a href="{{ url_for('devices_page') }}">Devices</a> page.</p>{% endif %}
+    </div>
+  </form>
+  <form method="post" action="{{ url_for('services_delete', sid=s.id) }}" onsubmit="return confirm('Delete this service?');" style="margin-top:8px;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn danger sm" type="submit">Delete service</button>
+  </form>
+</div>
+{% endfor %}
+{% else %}
+<div class="panel" style="max-width:760px;"><div class="empty">No additional services yet. Add extras like deep cleaning, custom color, or a mailed packing kit.</div></div>
+{% endif %}
+
+{% endblock %}

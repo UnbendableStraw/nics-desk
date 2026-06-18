@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% set active = 'customers' %}
+{% block title %}{{ c.first_name }} {{ c.last_name }}{% endblock %}
+{% block body %}
+
+<div class="pagehead">
+  <div><h1>{{ c.first_name }} {{ c.last_name }}</h1><p>{{ repairs|length }} repair(s) · {{ assets|length }} asset(s)</p></div>
+  <div><a class="btn ghost sm" href="{{ url_for('customers') }}">← All customers</a></div>
+</div>
+
+<div class="grid2">
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    {% if can('customers.manage') %}
+    <div class="panel pad">
+      <h2>Edit customer</h2>
+      <form method="post" action="{{ url_for('customer_edit', cid=c.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <div class="row">
+          <label class="field"><span class="lab">First name</span><input type="text" name="first_name" value="{{ c.first_name }}"></label>
+          <label class="field"><span class="lab">Last name</span><input type="text" name="last_name" value="{{ c.last_name }}"></label>
+        </div>
+        <label class="field"><span class="lab">Phone</span><input type="tel" name="phone" value="{{ c.phone }}"></label>
+        <label class="field"><span class="lab">Email</span><input type="email" name="email" value="{{ c.email }}"></label>
+        <label class="field"><span class="lab">Address line 1</span><input type="text" name="address1" value="{{ c.address1 }}"></label>
+        <label class="field"><span class="lab">Address line 2</span><input type="text" name="address2" value="{{ c.address2 }}"></label>
+        <div class="row">
+          <label class="field"><span class="lab">City</span><input type="text" name="city" value="{{ c.city }}"></label>
+          <label class="field" style="max-width:90px;"><span class="lab">State</span><input type="text" name="state" value="{{ c.state }}"></label>
+          <label class="field" style="max-width:120px;"><span class="lab">ZIP</span><input type="text" name="postal_code" value="{{ c.postal_code }}"></label>
+        </div>
+        <label class="field" style="max-width:110px;"><span class="lab">Country</span><input type="text" name="country" value="{{ c.country or 'US' }}"></label>
+        <label class="field"><span class="lab">Notes</span><textarea name="notes" rows="3">{{ c.notes }}</textarea></label>
+        <button class="btn" type="submit">Save customer</button>
+      </form>
+    </div>
+
+    <div class="panel pad">
+      <h2 style="color:var(--danger,#c0392b);">Danger zone</h2>
+      {% if repairs %}
+      <p class="muted" style="margin-top:0;">This customer has {{ repairs|length }} repair(s). Delete those first to remove the customer.</p>
+      <button class="btn danger" type="button" disabled>Delete customer</button>
+      {% else %}
+      <p class="muted" style="margin-top:0;">Removes this customer and their assets. This can't be undone.</p>
+      <form method="post" action="{{ url_for('customer_delete', cid=c.id) }}" onsubmit="return confirm('Delete {{ c.first_name }} {{ c.last_name }}?');" style="margin:0;">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="btn danger" type="submit">Delete customer</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="panel pad">
+      <h2>Customer details</h2>
+      <p style="margin:4px 0;"><strong>Phone:</strong> {{ c.phone or '—' }}</p>
+      <p style="margin:4px 0;"><strong>Email:</strong> {{ c.email or '—' }}</p>
+      <p style="margin:4px 0;"><strong>Address:</strong> {{ [c.address1, c.address2, c.city, c.state, c.postal_code]|select|join(', ') or '—' }}</p>
+      {% if c.notes %}<p style="margin:4px 0;"><strong>Notes:</strong> {{ c.notes }}</p>{% endif %}
+      <p class="help" style="margin-top:8px;">Editing customers needs Manager or Owner access.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <div class="panel pad">
+      <h2>Repairs</h2>
+      {% if repairs %}
+      <table class="tickets">
+        <thead><tr><th>#</th><th>Device</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for r in repairs %}
+          <tr onclick="location='{{ url_for('repair_detail', rid=r.id) }}'" style="cursor:pointer;">
+            <td><span class="rnum">{{ r.repair_number }}</span></td>
+            <td>{{ r.device or '—' }}{% if r.issue_names %}<div class="muted" style="font-size:12px">{{ r.issue_names }}</div>{% endif %}</td>
+            <td>{% set col = STATUS_COLORS.get(r.status,'slate') %}<span class="pill {{ col }}"><span class="dot"></span>{{ r.status }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="muted" style="margin-top:0;">No repairs yet. <a href="{{ url_for('repair_new') }}">Create one</a>.</p>{% endif %}
+    </div>
+
+    <div class="panel pad">
+      <h2>Assets</h2>
+      {% if assets %}
+      <table class="tickets">
+        <thead><tr><th>Device</th><th>Serial</th></tr></thead>
+        <tbody>{% for a in assets %}<tr><td>{{ a.device or '—' }}</td><td style="font-family:var(--mono); font-size:13px;">{{ a.serial or '—' }}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}<p class="muted" style="margin-top:0;">No assets logged. Add them on the <a href="{{ url_for('assets_page') }}">Assets</a> page.</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Repairs{% endblock %}
+{% block body %}
+
+{% if not imessage_ok %}
+<div class="banner warn">
+  <span>⚠︎</span>
+  <span>iMessage sending is in <strong>dev mode</strong> — it only sends for real when this app runs on a Mac with Messages signed in. Everything else works.</span>
+</div>
+{% endif %}
+
+<div class="pagehead">
+  <div>
+    <h1>Repairs</h1>
+    <p>Every ticket on the bench, newest activity first.</p>
+  </div>
+  <div style="display:flex; gap:8px;">
+    {% if can('settings') and inbound_on %}
+    <form method="post" action="{{ url_for('inbound_poll') }}" style="margin:0;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button class="btn ghost" type="submit" title="Pull new iMessage/email replies onto tickets">↻ Check replies</button>
+    </form>
+    {% endif %}
+    <a class="btn" href="{{ url_for('repair_new') }}">＋ New repair</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ stat_pending }}</div><div class="l">Awaiting review</div></div>
+  <div class="stat"><div class="n">{{ stat_active }}</div><div class="l">In the shop</div></div>
+  <div class="stat"><div class="n">{{ stat_ready }}</div><div class="l">Ready for pickup</div></div>
+</div>
+
+<form class="toolbar" method="get">
+  <input class="grow" type="search" name="q" value="{{ q }}" placeholder="Search repair #, name, phone, or device…">
+  <select name="status" onchange="this.form.submit()">
+    <option value="">All statuses</option>
+    {% for s in statuses %}
+      <option value="{{ s }}" {{ 'selected' if s==status_filter }}>{{ s }} ({{ counts[s] }})</option>
+    {% endfor %}
+  </select>
+  <button class="btn ghost" type="submit">Search</button>
+</form>
+
+{% if repairs %}
+<table class="tickets">
+  <thead>
+    <tr>
+      <th>Repair</th><th>Customer</th><th class="hide-sm">Device</th><th>Status</th><th class="hide-sm">Updated</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in repairs %}
+    <tr onclick="location.href='{{ url_for('repair_detail', rid=r.id) }}'">
+      <td><span class="rnum">{{ r.repair_number }}</span></td>
+      <td>{{ r.first_name }} {{ r.last_name }}<div class="muted hide-sm" style="font-size:12px">{{ r.phone }}</div></td>
+      <td class="hide-sm">{{ r.device or '—' }}{% if r.issue_names %}<div class="muted" style="font-size:12px">{{ r.issue_names }}</div>{% endif %}{% if r.outbound_method %}<div class="muted" style="font-size:11px">{{ r.inbound_method }}{% if r.inbound_method and r.outbound_method %} → {% endif %}{{ r.outbound_method }}</div>{% endif %}</td>
+      <td>{% set c = STATUS_COLORS.get(r.status, 'slate') %}<span class="pill {{ c }}"><span class="dot"></span>{{ r.status }}</span></td>
+      <td class="hide-sm muted" style="font-size:13px">{{ fmt_dt(r.updated_at) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="panel"><div class="empty">
+  No repairs match.{% if q or status_filter %} <a href="{{ url_for('dashboard') }}">Clear filters</a>.{% else %} Create your first ticket to get started.{% endif %}
+</div></div>
+{% endif %}
+
+{% endblock %}

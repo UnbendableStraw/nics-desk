@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Invoice {{ r.repair_number }}{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div>
+  <h1>PayPal invoice <span class="muted" style="font-size:15px;">for {{ r.repair_number }}</span></h1>
+  <p>Auto-filled from this repair's issues, services, and shipping. Review and edit, then send — the customer gets an email with a PayPal payment link.</p>
+</div></div>
+
+{% if not paypal_ready %}
+<div class="banner warn"><span>⚠︎</span><span>PayPal isn't set up yet. Add your REST app <strong>Client ID</strong> and <strong>Secret</strong> in <a href="{{ url_for('settings_page') }}">Settings</a> before sending.</span></div>
+{% elif env != 'live' %}
+<div class="banner" style="background:var(--surface-2,#f5f5f7);"><span>🧪</span><span>PayPal is in <strong>sandbox</strong> mode — invoices are test-only and won't charge real money. Switch to live in Settings when you're ready.</span></div>
+{% endif %}
+
+<div class="panel pad" style="max-width:720px;">
+  <form method="post" action="{{ url_for('repair_invoice_send', rid=r.id) }}" id="invform">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+    <label class="field"><span class="lab">Send to (customer email)</span>
+      <input type="email" name="recipient_email" value="{{ r.email }}" required></label>
+    {% if not r.email %}<div class="help" style="margin-top:-6px;">No email on file for {{ r.first_name }} {{ r.last_name }} — add one above.</div>{% endif %}
+
+    <div class="lab" style="margin-top:14px;">Line items</div>
+    <div id="items">
+      {% for l in lines %}
+      <div class="row itemrow" style="gap:8px; align-items:flex-end;">
+        <label class="field" style="flex:1; min-width:160px; margin:0;"><span class="lab">Description</span><input type="text" name="item_name" value="{{ l.name }}"></label>
+        <label class="field" style="width:70px; margin:0;"><span class="lab">Qty</span><input type="number" name="item_qty" value="{{ l.qty }}" min="1" oninput="recalc()"></label>
+        <label class="field" style="width:100px; margin:0;"><span class="lab">Amount</span><input type="number" name="item_amount" value="{{ '%.2f'|format(l.amount) }}" step="0.01" min="0" oninput="recalc()"></label>
+        <button type="button" class="btn danger sm" style="margin-bottom:2px;" onclick="this.closest('.itemrow').remove();recalc()">✕</button>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" class="btn ghost sm" onclick="addRow()" style="margin-top:8px;">＋ Add line</button>
+
+    <label class="field" style="margin-top:14px;"><span class="lab">Note to customer (optional)</span>
+      <textarea name="note" rows="2" placeholder="Thanks for your business!"></textarea></label>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid var(--border,#e5e5e5);">
+      <div style="font-size:18px;">Total: <strong id="total">{{ currency }} {{ '%.2f'|format(total) }}</strong></div>
+      <div style="display:flex; gap:8px;">
+        <a class="btn ghost" href="{{ url_for('repair_detail', rid=r.id) }}">Cancel</a>
+        <button class="btn" type="submit" {{ 'disabled' if not paypal_ready }} onclick="return confirm('Send this invoice to the customer now?');">Send invoice</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+var CUR = {{ currency|tojson }};
+function recalc() {
+  var rows = document.querySelectorAll('#items .itemrow');
+  var t = 0;
+  rows.forEach(function(r){
+    var q = parseFloat(r.querySelector('[name="item_qty"]').value) || 0;
+    var a = parseFloat(r.querySelector('[name="item_amount"]').value) || 0;
+    t += q * a;
+  });
+  document.getElementById('total').textContent = CUR + ' ' + t.toFixed(2);
+}
+function addRow() {
+  var d = document.createElement('div');
+  d.className = 'row itemrow';
+  d.style.gap = '8px'; d.style.alignItems = 'flex-end';
+  d.innerHTML = '<label class="field" style="flex:1; min-width:160px; margin:0;"><span class="lab">Description</span><input type="text" name="item_name"></label>'
+    + '<label class="field" style="width:70px; margin:0;"><span class="lab">Qty</span><input type="number" name="item_qty" value="1" min="1" oninput="recalc()"></label>'
+    + '<label class="field" style="width:100px; margin:0;"><span class="lab">Amount</span><input type="number" name="item_amount" value="0.00" step="0.01" min="0" oninput="recalc()"></label>'
+    + '<button type="button" class="btn danger sm" style="margin-bottom:2px;" onclick="this.closest(\'.itemrow\').remove();recalc()">✕</button>';
+  document.getElementById('items').appendChild(d);
+}
+</script>
+{% endblock %}

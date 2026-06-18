@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% set active = 'new' %}
+{% block title %}New repair{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>New repair</h1><p>Start a ticket and tag the device.</p></div></div>
+
+<div class="panel pad" style="max-width:680px;">
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+    <label class="field">
+      <span class="lab">Existing customer (optional)</span>
+      <select id="existing" name="customer_id" onchange="fillCustomer()">
+        <option value="">— New customer —</option>
+        {% for c in customers %}
+          <option value="{{ c.id }}" data-first="{{ c.first_name }}" data-last="{{ c.last_name }}" data-phone="{{ c.phone }}" data-email="{{ c.email }}">
+            {{ c.last_name }}, {{ c.first_name }} {{ '· ' ~ c.phone if c.phone }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="row">
+      <label class="field"><span class="lab">First name</span><input type="text" id="first_name" name="first_name"></label>
+      <label class="field"><span class="lab">Last name <span class="muted">(used for lookup)</span></span><input type="text" id="last_name" name="last_name" required></label>
+    </div>
+    <div class="row">
+      <label class="field"><span class="lab">Phone <span class="muted">(for iMessage)</span></span><input type="tel" id="phone" name="phone" placeholder="(555) 123-4567"></label>
+      <label class="field"><span class="lab">Email <span class="muted">(for email updates)</span></span><input type="email" id="email" name="email"></label>
+    </div>
+
+    <details style="margin-bottom:14px;">
+      <summary style="cursor:pointer; font-size:14px; color:var(--accent,#2f6fed);">Mailing address (for shipping labels)</summary>
+      <div style="margin-top:10px;">
+        <label class="field"><span class="lab">Address line 1</span><input type="text" id="address1" name="address1"></label>
+        <label class="field"><span class="lab">Address line 2 <span class="muted">(optional)</span></span><input type="text" id="address2" name="address2"></label>
+        <div class="row">
+          <label class="field"><span class="lab">City</span><input type="text" id="city" name="city"></label>
+          <label class="field" style="max-width:120px;"><span class="lab">State</span><input type="text" id="state" name="state"></label>
+          <label class="field" style="max-width:140px;"><span class="lab">ZIP</span><input type="text" id="postal_code" name="postal_code"></label>
+        </div>
+        <label class="field" style="max-width:140px;"><span class="lab">Country</span><input type="text" id="country" name="country" value="US"></label>
+      </div>
+    </details>
+
+    <div class="row">
+      <label class="field">
+        <span class="lab">Ticket prefix <span class="muted">(numbering)</span></span>
+        <select name="prefix_id">
+          {% for p in prefixes %}<option value="{{ p.id }}" {{ 'selected' if p.id|string == default_prefix_id }}>{{ p.code }} · {{ p.label or 'General' }} (next {{ p.code }}-{{ p.counter + 1 }})</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="lab">Device model</span>
+        <select name="device_id" id="device_id" onchange="syncDevice()">
+          <option value="">— Custom (type below) —</option>
+          {% for d in devices %}<option value="{{ d.id }}" data-name="{{ d.name }}">{{ d.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <label class="field"><span class="lab">Device</span><input type="text" id="device" name="device" placeholder="iPhone 13, MacBook Air M2…"></label>
+    <label class="field"><span class="lab">Serial number <span class="muted">(optional — logged as an asset)</span></span><input type="text" name="serial" placeholder="C02XL0…"></label>
+
+    {% if issues %}
+    <div class="field">
+      <span class="lab">Issues / services <span class="muted">(tick all that apply)</span></span>
+      <div class="checks">
+        {% for i in issues %}
+        <label class="check"><input type="checkbox" name="issue_ids" value="{{ i.id }}" data-low="{{ i.estimated_cost|costlow }}" data-high="{{ i.estimated_cost|costhigh }}" onchange="estimate()"> {{ i.name }}{% if i.estimated_cost %} · {{ i.estimated_cost }}{% endif %}</label>
+        {% endfor %}
+      </div>
+      <div class="help">Manage the list on the <a href="{{ url_for('issues_page') }}">Issues</a> page.</div>
+    </div>
+    {% endif %}
+
+    {% if services %}
+    <div class="field">
+      <span class="lab">Additional services <span class="muted">(optional extras)</span></span>
+      <div class="checks">
+        {% for s in services %}
+        <label class="check"><input type="checkbox" name="service_ids" value="{{ s.id }}" data-low="{{ s.cost|costlow }}" data-high="{{ s.cost|costhigh }}" onchange="estimate()"> {{ s.name }}{% if s.cost %} · {{ s.cost }}{% endif %}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+      <label class="field">
+        <span class="lab">Getting it to me</span>
+        <select name="inbound_method" onchange="estimate()">
+          <option value="" data-cost="0">— Not set —</option>
+          {% for m in methods_in %}<option value="{{ m.label }}" data-cost="{{ m.cost or 0 }}">{{ m.label }}{% if m.cost and m.cost != '0' %} ({{ m.cost if '$' in m.cost else '$' ~ m.cost }}){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span class="lab">Getting it back</span>
+        <select name="outbound_method" onchange="estimate()">
+          <option value="" data-cost="0">— Not set —</option>
+          {% for m in methods_out %}<option value="{{ m.label }}" data-cost="{{ m.cost or 0 }}">{{ m.label }}{% if m.cost and m.cost != '0' %} ({{ m.cost if '$' in m.cost else '$' ~ m.cost }}){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="panel" style="background:var(--surface-2,#f5f5f7); padding:12px 14px; margin:6px 0 14px; display:flex; justify-content:space-between; align-items:center;">
+      <strong>Estimated total</strong><strong id="esttotal" style="font-size:17px;">$0</strong>
+    </div>
+    <label class="field"><span class="lab">Notes / details</span><textarea name="issue" placeholder="Cracked screen, customer notes…"></textarea></label>
+
+    <button class="btn" type="submit">Create ticket</button>
+    <a class="btn ghost" href="{{ url_for('dashboard') }}">Cancel</a>
+  </form>
+</div>
+
+<script>
+function fillCustomer() {
+  var o = document.getElementById('existing').selectedOptions[0];
+  document.getElementById('first_name').value = o.dataset.first || '';
+  document.getElementById('last_name').value  = o.dataset.last  || '';
+  document.getElementById('phone').value      = o.dataset.phone || '';
+  document.getElementById('email').value      = o.dataset.email || '';
+}
+function syncDevice() {
+  var o = document.getElementById('device_id').selectedOptions[0];
+  if (o && o.dataset.name) document.getElementById('device').value = o.dataset.name;
+}
+function estimate() {
+  var lo = 0, hi = 0;
+  document.querySelectorAll('input[name="issue_ids"]:checked, input[name="service_ids"]:checked').forEach(function(c){
+    lo += parseFloat(c.dataset.low) || 0;
+    hi += parseFloat(c.dataset.high) || 0;
+  });
+  document.querySelectorAll('select[name="inbound_method"], select[name="outbound_method"]').forEach(function(s){
+    var o = s.selectedOptions[0];
+    if (o) { var m = parseFloat((o.dataset.cost||'').replace(/[^0-9.]/g,'')) || 0; lo += m; hi += m; }
+  });
+  function money(n){ return '$' + (n % 1 === 0 ? n : n.toFixed(2)); }
+  document.getElementById('esttotal').textContent =
+    (Math.abs(lo - hi) < 0.001) ? money(lo) : (money(lo) + '\u2013' + money(hi));
+}
+</script>
+{% endblock %}

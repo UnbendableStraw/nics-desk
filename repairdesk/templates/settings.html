@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% set active = 'settings' %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Settings</h1><p>Shop details, numbering, messaging, and access.</p></div></div>
+
+{% if using_default_pw %}
+<div class="banner warn"><span>⚠︎</span><span>You're still using the default password (<code>changeme</code>). Set a new one below.</span></div>
+{% endif %}
+
+<!-- Device types / prefixes -->
+<div class="panel pad" style="max-width:780px; margin-bottom:20px;">
+  <h2>Device types &amp; repair numbers</h2>
+  <p class="muted" style="margin-top:0;">Each device type has its own prefix and its own running number, so phones might be <code>PH-1001</code> while laptops are <code>LT-500</code>. The ★ type is used for customer-submitted requests.</p>
+  <table class="tickets" style="margin-bottom:16px;">
+    <thead><tr><th>Code</th><th>Label</th><th>Next number</th><th>In use</th><th></th></tr></thead>
+    <tbody>
+      {% for p in prefixes %}
+      <tr>
+        <td><span class="rnum">{{ p.code }}</span> {% if p.id|string == default_prefix_id %}<span class="muted">★</span>{% endif %}</td>
+        <td colspan="4">
+          <form method="post" action="{{ url_for('prefixes_update', pid=p.id) }}" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="text" name="label" value="{{ p.label }}" placeholder="Label" style="width:140px;">
+            <input type="number" name="next_number" value="{{ p.counter + 1 }}" style="width:110px;" title="Next number">
+            <span class="muted" style="font-size:12px;">{{ p.use_count }} repair(s)</span>
+            <label style="font-size:13px; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="make_default" style="width:auto;" {{ 'checked' if p.id|string==default_prefix_id }}> default</label>
+            <button class="btn ghost sm" type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      <tr><td></td><td colspan="4" style="padding-top:0;">
+        <form method="post" action="{{ url_for('prefixes_delete', pid=p.id) }}" onsubmit="return confirm('Delete device type {{ p.code }}?');" style="margin:0;">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <button class="btn danger sm" type="submit" {{ 'disabled' if p.use_count }}>Delete</button>
+          {% if p.use_count %}<span class="muted" style="font-size:12px;">in use — can't delete</span>{% endif %}
+        </form>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="{{ url_for('prefixes_add') }}" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0;"><span class="lab">New code</span><input type="text" name="code" placeholder="LT" maxlength="6" style="width:90px; text-transform:uppercase;" required></label>
+    <label class="field" style="margin:0;"><span class="lab">Label</span><input type="text" name="label" placeholder="Laptop" style="width:160px;"></label>
+    <label class="field" style="margin:0;"><span class="lab">Start at</span><input type="number" name="start_number" value="1001" style="width:110px;"></label>
+    <button class="btn" type="submit">Add type</button>
+  </form>
+</div>
+
+<!-- Statuses -->
+<div class="panel pad" style="max-width:780px; margin-bottom:20px;">
+  <h2>Repair statuses</h2>
+  <p class="muted" style="margin-top:0;">The stages a repair moves through. Rename, recolor, reorder, add, or remove them. Renaming updates existing tickets automatically.</p>
+  {% for st in statuses %}
+  <form method="post" action="{{ url_for('statuses_update', sid=st.id) }}" style="display:flex; gap:8px; align-items:center; margin:6px 0; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <span class="pill {{ st.color }}" style="min-width:14px;"><span class="dot"></span></span>
+    <input type="text" name="name" value="{{ st.name }}" style="flex:1; min-width:150px;">
+    <select name="color" style="width:90px;">
+      {% for c in status_color_choices %}<option value="{{ c }}" {{ 'selected' if c==st.color }}>{{ c }}</option>{% endfor %}
+    </select>
+    <input type="number" name="sort" value="{{ st.sort }}" min="0" style="width:54px;" title="Order">
+    <button class="btn ghost sm" type="submit">Save</button>
+  </form>
+  <form method="post" action="{{ url_for('statuses_delete', sid=st.id) }}" style="display:inline; margin:0 0 6px;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">✕</button>
+  </form>
+  {% endfor %}
+  <form method="post" action="{{ url_for('statuses_add') }}" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-top:10px;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0; flex:1; min-width:160px;"><span class="lab">New status</span><input type="text" name="name" placeholder="e.g. Quoted"></label>
+    <label class="field" style="margin:0;"><span class="lab">Color</span><select name="color" style="width:100px;">{% for c in status_color_choices %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select></label>
+    <button class="btn sm" type="submit">Add status</button>
+  </form>
+  <div class="row" style="margin-top:14px;">
+    <label class="field"><span class="lab">New staff tickets start as</span>
+      <select name="default_status" form="shopform">{% for st in statuses %}<option value="{{ st.name }}" {{ 'selected' if st.name==s.default_status }}>{{ st.name }}</option>{% endfor %}</select></label>
+    <label class="field"><span class="lab">Customer requests start as</span>
+      <select name="intake_status" form="shopform">{% for st in statuses %}<option value="{{ st.name }}" {{ 'selected' if st.name==s.intake_status }}>{{ st.name }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="help" style="margin-top:-6px;">These two are saved with the <strong>Save settings</strong> button below.</div>
+</div>
+
+<!-- Shipping options moved to their own page (Phase 2) -->
+<div class="panel pad" style="max-width:780px; margin-bottom:20px;">
+  <h2>Shipping &amp; handling options</h2>
+  <p class="muted" style="margin-top:0;">These now live on their own page, where you can also link an option to specific devices and flag whether it needs a mailing address.</p>
+  <a class="btn ghost" href="{{ url_for('shipping_page') }}">Manage shipping options →</a>
+</div>
+
+<div class="panel pad" style="max-width:780px;">
+  <form method="post" id="shopform">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <h2>Shop</h2>
+    <div class="row">
+      <label class="field"><span class="lab">Shop name</span><input type="text" name="shop_name" value="{{ s.shop_name }}"></label>
+      <label class="field"><span class="lab">Default country code</span><input type="text" name="default_country_code" value="{{ s.default_country_code }}"><div class="help">Added to 10-digit numbers</div></label>
+    </div>
+
+    <h2 style="margin-top:22px;">Customer links &amp; QR codes</h2>
+    <label class="field">
+      <span class="lab">Base URL</span>
+      <input type="text" name="base_url" value="{{ s.base_url }}">
+      <div class="help">Where your QR codes and tracking links point. Use your Mac's network address (e.g. <code>http://192.168.1.20:5050</code>) so phones on your shop Wi-Fi can reach it.</div>
+    </label>
+
+    <h2 style="margin-top:22px;">iMessage template</h2>
+    {% if not imessage_ok %}<div class="banner warn"><span>⚠︎</span><span>Not running on a Mac — iMessages log instead of sending.</span></div>{% endif %}
+    <label class="field">
+      <span class="lab">Status update text</span>
+      <textarea name="msg_template" rows="2">{{ s.msg_template }}</textarea>
+    </label>
+
+    <h2 style="margin-top:22px;">Email (SMTP)</h2>
+    <p class="muted" style="margin-top:0;">Send updates from your professional Gmail. Use a Google <strong>App Password</strong> (Account → Security → 2-Step Verification → App passwords), not your normal password.</p>
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin-bottom:12px;">
+      <input type="checkbox" name="smtp_enabled" style="width:auto;" {{ 'checked' if s.smtp_enabled=='1' }}> Enable email sending
+      {% if email_ok %}<span class="pill green" style="margin-left:6px;"><span class="dot"></span>ready</span>{% endif %}
+    </label>
+    <div class="row">
+      <label class="field"><span class="lab">SMTP host</span><input type="text" name="smtp_host" value="{{ s.smtp_host }}" placeholder="smtp.gmail.com"></label>
+      <label class="field"><span class="lab">Port</span><input type="text" name="smtp_port" value="{{ s.smtp_port }}" placeholder="587"></label>
+    </div>
+    <div class="row">
+      <label class="field">
+        <span class="lab">Security</span>
+        <select name="smtp_security">
+          <option value="starttls" {{ 'selected' if s.smtp_security=='starttls' }}>STARTTLS (Gmail, port 587)</option>
+          <option value="ssl" {{ 'selected' if s.smtp_security=='ssl' }}>SSL/TLS (port 465)</option>
+          <option value="none" {{ 'selected' if s.smtp_security=='none' }}>None</option>
+        </select>
+      </label>
+      <label class="field"><span class="lab">From address</span><input type="text" name="smtp_from" value="{{ s.smtp_from }}" placeholder="My Shop &lt;you@gmail.com&gt;"></label>
+    </div>
+    <div class="row">
+      <label class="field"><span class="lab">Username</span><input type="text" name="smtp_user" value="{{ s.smtp_user }}" placeholder="you@gmail.com" autocomplete="off"></label>
+      <label class="field"><span class="lab">App password</span><input type="password" name="smtp_pass" value="{{ s.smtp_pass }}" autocomplete="new-password"></label>
+    </div>
+    <label class="field"><span class="lab">Email subject</span><input type="text" name="email_subject_template" value="{{ s.email_subject_template }}"></label>
+    <label class="field"><span class="lab">Email body</span><textarea name="email_body_template" rows="6">{{ s.email_body_template }}</textarea></label>
+    <div class="help" style="margin-top:-6px;">Placeholders: <code>{first_name}</code> <code>{last_name}</code> <code>{repair_number}</code> <code>{device}</code> <code>{serial}</code> <code>{status}</code> <code>{issue_name}</code> <code>{price}</code> <code>{total}</code> <code>{fulfillment}</code> <code>{track_url}</code> <code>{shop_name}</code></div>
+
+    <h2 style="margin-top:22px;">Shipping labels</h2>
+    <p class="muted" style="margin-top:0;">You create labels yourself (USPS, UPS, PayPal, etc.) and upload them on the repair ticket, then text or email them to the customer. This is the message that's sent with the label.</p>
+    <label class="field"><span class="lab">Label message to customer</span><textarea name="label_message_template" rows="2">{{ s.label_message_template }}</textarea>
+      <div class="help">Placeholders: <code>{first_name}</code> <code>{repair_number}</code> <code>{label_line}</code> <code>{tracking}</code> <code>{track_url}</code></div>
+    </label>
+
+    <h2 style="margin-top:22px;">Customer-facing info</h2>
+    <p class="muted" style="margin-top:0;">Shown on the new-request page so customers know what to expect.</p>
+    <div class="row">
+      <label class="field"><span class="lab">Current estimated response time</span><input type="text" name="response_time_text" value="{{ s.response_time_text }}" placeholder="1–2 business days"></label>
+      <label class="field"><span class="lab">Current estimated turnaround time</span><input type="text" name="turnaround_time_text" value="{{ s.turnaround_time_text }}" placeholder="3–5 business days"></label>
+    </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:6px 0;">
+      <input type="checkbox" name="show_repaired_counter" style="width:auto;" {{ 'checked' if s.show_repaired_counter=='1' }}>
+      Show “More than X devices repaired, and counting!” on the request &amp; tracking pages
+    </label>
+    <label class="field" style="max-width:260px;"><span class="lab">Extra baseline to add to the count</span><input type="number" name="repaired_baseline" value="{{ s.repaired_baseline or '0' }}" min="0">
+      <div class="help">The count already includes each device type's starting number (a type that starts at 5,000 counts as 5,000 done). This optional number is added on top. Current count: <strong>{{ repaired_count_now }}</strong>.</div>
+    </label>
+
+    <h2 style="margin-top:22px;">Customer portal (email sign-in)</h2>
+    <p class="muted" style="margin-top:0;">Lets returning customers sign in with a one-time link emailed to them (no password) and see all their repairs at <code>/portal</code>. Requires email (SMTP) above to be set up.</p>
+    {% if not email_ok %}<div class="banner warn"><span>⚠︎</span><span>Email isn't configured yet, so sign-in links can't be sent. Set up SMTP above first.</span></div>{% endif %}
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:6px 0;">
+      <input type="checkbox" name="portal_enabled" style="width:auto;" {{ 'checked' if s.portal_enabled=='1' }}> Enable the customer portal
+    </label>
+    <label class="field"><span class="lab">Sign-in email subject</span><input type="text" name="portal_email_subject" value="{{ s.portal_email_subject }}"></label>
+    <label class="field"><span class="lab">Sign-in email body</span><textarea name="portal_email_body" rows="6">{{ s.portal_email_body }}</textarea></label>
+    <div class="help" style="margin-top:-6px;">Placeholders: <code>{first_name}</code> <code>{link}</code> <code>{minutes}</code> <code>{shop_name}</code>. The <code>{link}</code> is required.</div>
+
+    <h2 style="margin-top:22px;">PayPal invoicing</h2>
+    <p class="muted" style="margin-top:0;">Send customers a PayPal invoice from a repair (auto-filled from its issues, services, and shipping), with a review-and-confirm step before it goes out. Create a REST app at <a href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener">developer.paypal.com</a> and paste its credentials here. Start in <strong>sandbox</strong> to test.</p>
+    <div class="row">
+      <label class="field"><span class="lab">Client ID</span><input type="text" name="paypal_client_id" value="{{ s.paypal_client_id }}" autocomplete="off"></label>
+      <label class="field"><span class="lab">Secret</span><input type="password" name="paypal_secret" value="{{ s.paypal_secret }}" autocomplete="new-password" placeholder="{{ '••••••••' if s.paypal_secret else '' }}"></label>
+    </div>
+    <div class="row">
+      <label class="field" style="max-width:200px;"><span class="lab">Environment</span>
+        <select name="paypal_env">
+          <option value="sandbox" {{ 'selected' if s.paypal_env != 'live' }}>Sandbox (testing)</option>
+          <option value="live" {{ 'selected' if s.paypal_env == 'live' }}>Live (real money)</option>
+        </select>
+      </label>
+      <label class="field" style="max-width:140px;"><span class="lab">Currency</span><input type="text" name="paypal_currency" value="{{ s.paypal_currency or 'USD' }}" maxlength="3"></label>
+    </div>
+    <div class="help" style="margin-top:-6px;">The Secret is stored in your local <code>repairdesk.db</code> on this Mac. Leaving the Secret blank keeps the saved one.</div>
+
+    <h2 style="margin-top:22px;">Reading customer replies</h2>
+    <p class="muted" style="margin-top:0;">Pull customers' replies onto the matching ticket's chat. Use <strong>Check replies</strong> on the Repairs page (or a scheduled job that POSTs to <code>/inbound/poll</code>). Replies are matched to a customer by phone/email, and to a ticket by any repair number in the message — otherwise their most recent ticket.</p>
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:6px 0;">
+      <input type="checkbox" name="imessage_read_enabled" style="width:auto;" {{ 'checked' if s.imessage_read_enabled=='1' }}> Read inbound <strong>iMessages</strong> from this Mac
+    </label>
+    <div class="help" style="margin-top:-4px;">Reads the Messages history (<code>~/Library/Messages/chat.db</code>). You must grant this app <strong>Full Disk Access</strong> in System Settings → Privacy &amp; Security. Mac only.</div>
+
+    <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:14px 0 6px;">
+      <input type="checkbox" name="imap_enabled" style="width:auto;" {{ 'checked' if s.imap_enabled=='1' }}> Read inbound <strong>email</strong> over IMAP
+    </label>
+    <div class="row">
+      <label class="field"><span class="lab">IMAP host</span><input type="text" name="imap_host" value="{{ s.imap_host }}" placeholder="imap.gmail.com"></label>
+      <label class="field" style="max-width:90px;"><span class="lab">Port</span><input type="text" name="imap_port" value="{{ s.imap_port or '993' }}"></label>
+    </div>
+    <div class="row">
+      <label class="field"><span class="lab">IMAP user</span><input type="text" name="imap_user" value="{{ s.imap_user }}" autocomplete="off"></label>
+      <label class="field"><span class="lab">IMAP password</span><input type="password" name="imap_pass" value="" autocomplete="new-password" placeholder="{{ '••••••••' if s.imap_pass else '' }}"></label>
+    </div>
+    <label class="field" style="max-width:200px;"><span class="lab">Mailbox</span><input type="text" name="imap_mailbox" value="{{ s.imap_mailbox or 'INBOX' }}"></label>
+    <div class="help" style="margin-top:-6px;">For Gmail use an App Password (same kind as the SMTP one). Password is stored in your local <code>repairdesk.db</code>; blank keeps the saved one. Messages are marked read as they're imported.</div>
+
+    <h2 style="margin-top:22px;">Staff password</h2>
+    <div class="row">
+      <label class="field"><span class="lab">New password</span><input type="password" name="new_password" autocomplete="new-password"></label>
+      <label class="field"><span class="lab">Confirm</span><input type="password" name="confirm_password" autocomplete="new-password"></label>
+    </div>
+    <div class="help" style="margin-top:-6px;">Leave blank to keep your current password.</div>
+
+    <div style="margin-top:18px;"><button class="btn" type="submit">Save settings</button></div>
+  </form>
+</div>
+{% endblock %}

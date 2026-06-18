@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · {{ shop_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="portal-head">
+      <div class="mark">R</div>
+      <h1>{{ shop_name }}</h1>
+      <p>Staff sign-in</p>
+    </div>
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+        <div class="flash {{ 'ok' if cat=='ok' else 'error' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    <div class="panel pad">
+      <form method="post">
+        <label class="field">
+          <span class="lab">Username</span>
+          <input type="text" name="username" autocomplete="username" autofocus required>
+        </label>
+        <label class="field">
+          <span class="lab">Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn" type="submit" style="width:100%; justify-content:center;">Sign in</button>
+      </form>
+    </div>
+    <p class="alt muted" style="text-align:center; margin-top:16px;">
+      Customers can <a href="{{ url_for('track') }}">check a repair</a>{% if portal_on %} or <a href="{{ url_for('portal_login') }}">sign in</a>{% endif %}.
+    </p>
+  </div>
+</div>
+</body>
+</html>

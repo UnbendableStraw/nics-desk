@@ -1,0 +1,315 @@
+{% extends "base_public.html" %}
+{% block title %}Request a repair{% endblock %}
+{% block tagline %}Tell us what needs fixing{% endblock %}
+{% block body %}
+
+{% if repaired_count and repaired_count > 0 %}
+<div class="panel pad" style="text-align:center; margin-bottom:14px; background:var(--surface-2,#f1f1f4);">
+  <div style="font-size:18px; font-weight:700;">More than {{ "{:,}".format(repaired_count) }} devices repaired, and counting!</div>
+</div>
+{% endif %}
+
+{% if done %}
+  <div class="panel pad" style="text-align:center;">
+    <div style="font-size:34px; line-height:1;">✓</div>
+    <h2 style="margin:12px 0 6px;">Request received</h2>
+    <p class="muted" style="margin-top:0;">We'll review it shortly. Save your repair number{{ 's' if repairs|length > 1 }} to check progress.</p>
+    {% for r in confirm %}
+    <div class="status-hero" style="margin-bottom:8px;">
+      <div class="num">{{ r.device or 'Device' }}{% if r.issue_names %} — {{ r.issue_names }}{% endif %}</div>
+      <div class="rnum" style="font-size:22px; margin-top:4px;">{{ r.number }}</div>
+      {% if r.total %}<div class="muted">Estimate: {{ r.total }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    {% if inbound or outbound %}<p class="muted">{{ inbound }}{% if inbound and outbound %} → {% endif %}{{ outbound }}{% if label_format %} · label: {{ 'PDF' if label_format=='pdf' else 'QR code' }}{% endif %}</p>{% endif %}
+    {% if customer %}<a class="btn" href="{{ url_for('portal_home') }}" style="margin-top:8px;">Your repairs</a>
+    {% else %}<a class="btn" href="{{ url_for('track') }}" style="margin-top:8px;">Track a repair</a>{% endif %}
+  </div>
+{% else %}
+  {% if response_time or turnaround_time %}
+  <div class="panel pad" style="margin-bottom:14px; display:flex; gap:24px; flex-wrap:wrap;">
+    {% if response_time %}<div><div class="lab" style="margin:0;">Current estimated response time</div><div style="font-size:17px; font-weight:600;">{{ response_time }}</div></div>{% endif %}
+    {% if turnaround_time %}<div><div class="lab" style="margin:0;">Current estimated turnaround time</div><div style="font-size:17px; font-weight:600;">{{ turnaround_time }}</div></div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="panel pad">
+    <form method="post" id="reqform" onsubmit="return validateForm()">
+      {% if cust %}
+      <div class="panel" style="background:var(--surface-2,#f5f5f7); padding:12px 14px; margin:0 0 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div>Submitting as <strong>{{ cust.first_name }} {{ cust.last_name }}</strong> <span class="muted">· {{ cust.email or cust.phone }}</span></div>
+        <a class="muted" href="{{ url_for('portal_home') }}" style="font-size:13px;">Your repairs →</a>
+      </div>
+      {% else %}
+      <div class="row">
+        <label class="field"><span class="lab">First name</span><input type="text" name="first_name"></label>
+        <label class="field"><span class="lab">Last name</span><input type="text" name="last_name" required></label>
+      </div>
+      <div class="row">
+        <label class="field"><span class="lab">Phone</span><input type="tel" name="phone" placeholder="(555) 123-4567"></label>
+        <label class="field"><span class="lab">Email</span><input type="email" name="email"></label>
+      </div>
+      <div class="help" style="margin:-6px 0 14px;">Give us at least a phone or email so we can reach you. {% if portal_on %}Already a customer? <a href="{{ url_for('portal_login') }}">Sign in</a> to skip this.{% endif %}</div>
+      {% endif %}
+
+      <details id="addrwrap" style="margin-bottom:16px;">
+        <summary style="cursor:pointer; font-size:14px; color:var(--accent,#2f6fed);">Mailing address <span id="addrhint" class="muted">(needed if we're shipping to you)</span></summary>
+        <div style="margin-top:10px;">
+          <label class="field"><span class="lab">Address line 1</span><input type="text" name="address1" id="address1"></label>
+          <label class="field"><span class="lab">Address line 2 <span class="muted">(optional)</span></span><input type="text" name="address2"></label>
+          <div class="row">
+            <label class="field"><span class="lab">City</span><input type="text" name="city" id="city"></label>
+            <label class="field" style="max-width:110px;"><span class="lab">State</span><input type="text" name="state" id="state"></label>
+            <label class="field" style="max-width:130px;"><span class="lab">ZIP</span><input type="text" name="postal_code" id="postal_code"></label>
+          </div>
+          <label class="field" style="max-width:130px;"><span class="lab">Country</span><input type="text" name="country" value="US"></label>
+        </div>
+      </details>
+
+      <div id="devices"></div>
+      <button type="button" class="btn ghost" onclick="addDevice()" style="margin-bottom:18px;">＋ Add another device</button>
+
+      <div class="row">
+        <label class="field"><span class="lab">Getting it to us</span>
+          <select name="inbound_method" id="inbound" onchange="onShippingChange()">
+            <option value="" data-cost="0">— Choose —</option>
+          </select>
+        </label>
+        <label class="field"><span class="lab">Getting it back</span>
+          <select name="outbound_method" id="outbound" onchange="onShippingChange()">
+            <option value="" data-cost="0">— Choose —</option>
+          </select>
+        </label>
+      </div>
+      <div id="shipnote" class="help" style="display:none; margin:-6px 0 10px;"></div>
+
+      <div id="labelfmt" class="field" style="display:none; background:var(--surface-2,#f5f5f7); padding:12px 14px; border-radius:10px;">
+        <span class="lab">How should we send your shipping label? <span style="color:var(--danger,#c0392b);">*</span></span>
+        <label class="check" style="margin-top:4px;"><input type="radio" name="label_format" value="pdf" onchange="clearLabelErr()"> Printable PDF — I'll print it at home</label>
+        <label class="check" style="margin-top:6px;"><input type="radio" name="label_format" value="qr" onchange="clearLabelErr()"> QR code — the post office / UPS scans it from my phone</label>
+        <div id="labelerr" class="help" style="display:none; color:var(--danger,#c0392b); margin-top:6px;">Please choose a label format.</div>
+      </div>
+
+      <label class="field" style="margin-top:14px;"><span class="lab">Additional comments <span class="muted">(optional)</span></span><textarea name="comments" rows="3" placeholder="Anything else we should know? Accessories included, preferred contact times, etc."></textarea></label>
+
+      <div class="panel" style="background:var(--surface-2,#f5f5f7); padding:14px 16px; margin:8px 0 16px; display:flex; justify-content:space-between; align-items:center;">
+        <strong>Estimated total</strong>
+        <strong id="total" style="font-size:18px;">$0</strong>
+      </div>
+      <div class="help" style="margin:-8px 0 14px;">This is a rough estimate — we'll confirm the final quote after reviewing your request.</div>
+
+      <input type="hidden" name="device_count" id="device_count" value="0">
+      <button class="btn" type="submit" style="width:100%; justify-content:center;">Submit request</button>
+    </form>
+  </div>
+  <p class="alt">Already have a repair number? <a href="{{ url_for('track') }}">Check status</a>.</p>
+
+  <script>
+  var DEVICES = {{ devices|map(attribute='id')|list|tojson }};
+  var DEVICE_NAMES = {{ devices|map(attribute='name')|list|tojson }};
+  var CATALOG = {{ device_catalog_map|safe }};
+  var SHIPPING = {{ shipping_data|safe }};
+  var idx = 0;
+
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+  function deviceOptions() {
+    var html = '<option value="">— Choose a device —</option>';
+    for (var i=0;i<DEVICES.length;i++) html += '<option value="'+DEVICES[i]+'">'+esc(DEVICE_NAMES[i])+'</option>';
+    html += '<option value="other">Other / not listed</option>';
+    return html;
+  }
+
+  function addDevice() {
+    var i = idx++;
+    var wrap = document.createElement('div');
+    wrap.className = 'panel pad';
+    wrap.style.cssText = 'margin-bottom:12px;';
+    wrap.innerHTML =
+      '<div style="display:flex; justify-content:space-between; align-items:center;">'+
+        '<span class="lab" style="margin:0;">Device '+(i+1)+'</span>'+
+        (i>0 ? '<button type="button" class="btn danger sm" onclick="this.closest(\'.panel\').remove();recount();rebuildShipping();">Remove</button>' : '')+
+      '</div>'+
+      '<label class="field"><select name="device_id_'+i+'" onchange="onDevicePick('+i+')">'+deviceOptions()+'</select></label>'+
+      '<label class="field" id="other_'+i+'" style="display:none;"><span class="lab">Device name</span><input type="text" name="device_text_'+i+'" placeholder="e.g. Pixel 8"></label>'+
+      '<label class="field"><span class="lab">Serial number (optional)</span><input type="text" name="serial_'+i+'"></label>'+
+      '<div class="lab">What needs fixing?</div>'+
+      '<div class="checks" id="issues_'+i+'"><p class="muted" style="margin:0;">Pick a device to see options.</p></div>'+
+      '<div id="svcwrap_'+i+'" style="display:none;"><div class="lab" style="margin-top:10px;">Add-on services (optional)</div>'+
+      '<div class="checks" id="services_'+i+'"></div></div>';
+    document.getElementById('devices').appendChild(wrap);
+    recount();
+  }
+
+  function mediaHtml(it) {
+    if (!it.media || !it.media.length) return '';
+    var h = '<div style="display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 2px;">';
+    it.media.forEach(function(m){
+      var src = '/issues/media/' + m.id;
+      if (m.kind === 'image') h += '<img src="'+src+'" loading="lazy" style="max-width:120px; max-height:90px; border-radius:6px; border:1px solid var(--border,#e3e3e8);">';
+      else h += '<audio controls preload="none" style="height:32px; vertical-align:middle;"><source src="'+src+'"></audio>';
+    });
+    return h + '</div>';
+  }
+
+  function checkboxRow(field, it) {
+    var lo = (typeof it.cost_low === 'number') ? it.cost_low : 0;
+    var hi = (typeof it.cost_high === 'number') ? it.cost_high : lo;
+    var clabel = it.cost_label || '';
+    var desc = it.desc ? '<span class="muted" style="display:block; font-size:11px;">'+esc(it.desc)+'</span>' : '';
+    return '<label class="check" style="align-items:flex-start;"><input type="checkbox" name="'+field+'" value="'+it.id+'" data-low="'+lo+'" data-high="'+hi+'" onchange="recalc()"> '+
+           '<span>'+esc(it.name)+(clabel?' · '+esc(clabel):'')+desc+mediaHtml(it)+'</span></label>';
+  }
+
+  function onDevicePick(i) {
+    var val = document.querySelector('[name="device_id_'+i+'"]').value;
+    document.getElementById('other_'+i).style.display = (val==='other') ? 'block' : 'none';
+    var box = document.getElementById('issues_'+i);
+    var svcWrap = document.getElementById('svcwrap_'+i);
+    var svcBox = document.getElementById('services_'+i);
+    var entry = CATALOG[val] || (val==='other' ? CATALOG['other'] : null);
+    if (!val || !entry) {
+      box.innerHTML = '<p class="muted" style="margin:0;">Pick a device to see options.</p>';
+      svcWrap.style.display = 'none'; svcBox.innerHTML = ''; rebuildShipping(); return;
+    }
+    var issues = entry.issues || [], services = entry.services || [];
+    box.innerHTML = issues.length
+      ? issues.map(function(it){ return checkboxRow('issues_'+i, it); }).join('')
+      : '<p class="muted" style="margin:0;">No preset issues — we\'ll assess it. Add details in the comments.</p>';
+    if (services.length) {
+      svcBox.innerHTML = services.map(function(it){ return checkboxRow('services_'+i, it); }).join('');
+      svcWrap.style.display = 'block';
+    } else { svcWrap.style.display = 'none'; svcBox.innerHTML = ''; }
+    rebuildShipping();
+  }
+
+  // ---- Shipping options: filtered by the chosen device(s), drive address fields ----
+  function chosenCatalogDeviceIds() {
+    var ids = [];
+    document.querySelectorAll('#devices [name^="device_id_"]').forEach(function(sel){
+      var v = sel.value;
+      if (v && v !== 'other') { var n = parseInt(v, 10); if (!isNaN(n) && ids.indexOf(n) < 0) ids.push(n); }
+    });
+    return ids;
+  }
+  function methodOK(e, ids) {
+    if (!e.devices) return true;     // no links == applies to every device
+    if (!ids.length) return true;    // nothing chosen yet — don't pre-filter
+    return ids.every(function(id){ return e.devices.indexOf(id) >= 0; });
+  }
+  function optText(e) {
+    var t = e.label, c = ('' + e.cost);
+    if (c && ['0','$0',''].indexOf(c) < 0) t += ' (+' + (c.indexOf('$') >= 0 ? c : '$' + c) + ')';
+    if (e.days) t += ' \u00b7 est. ' + e.days;
+    return t;
+  }
+  function fillSelect(sel, list, ids) {
+    var prev = sel.value, keep = false;
+    var html = '<option value="" data-cost="0">— Choose —</option>';
+    list.forEach(function(e){
+      if (!methodOK(e, ids)) return;
+      if (e.label === prev) keep = true;
+      html += '<option value="' + esc(e.label) + '" data-cost="' + esc('' + e.cost) + '"' +
+              ' data-ship="' + (e.ship ? '1' : '0') + '" data-qr="' + (e.qr ? '1' : '0') + '"' +
+              ' data-addr="' + (e.requires_address ? '1' : '0') + '">' + esc(optText(e)) + '</option>';
+    });
+    sel.innerHTML = html;
+    sel.value = keep ? prev : '';
+  }
+  function rebuildShipping() {
+    var ids = chosenCatalogDeviceIds();
+    fillSelect(document.getElementById('inbound'), SHIPPING['in'], ids);
+    fillSelect(document.getElementById('outbound'), SHIPPING['out'], ids);
+    onShippingChange();
+  }
+
+  function addrRequired() {
+    return ['inbound','outbound'].some(function(id){
+      var o = document.getElementById(id).selectedOptions[0];
+      return o && o.dataset.addr === '1';
+    });
+  }
+  function refreshAddress() {
+    var req = addrRequired();
+    ['address1','city','state','postal_code'].forEach(function(n){
+      var el = document.getElementById(n);
+      if (el) { if (req) el.setAttribute('required','required'); else el.removeAttribute('required'); }
+    });
+    var hint = document.getElementById('addrhint');
+    var note = document.getElementById('shipnote');
+    if (req) {
+      document.getElementById('addrwrap').open = true;
+      hint.textContent = '(required for the shipping option you chose)';
+      hint.style.color = 'var(--danger,#c0392b)';
+      note.style.display = 'block';
+      note.style.color = 'var(--danger,#c0392b)';
+      note.textContent = 'Your shipping choice needs a mailing address — please fill it in above.';
+    } else {
+      hint.textContent = '(needed if we\u2019re shipping to you)';
+      hint.style.color = '';
+      note.style.display = 'none';
+    }
+  }
+
+  function onShippingChange() {
+    var io = document.getElementById('inbound').selectedOptions[0];
+    var needsLabel = io && io.dataset.ship === '1';
+    var qrCapable = needsLabel && io.dataset.qr === '1';
+    // The PDF-vs-QR choice only appears when the option supports a QR label.
+    document.getElementById('labelfmt').style.display = qrCapable ? 'block' : 'none';
+    if (!qrCapable) { document.querySelectorAll('input[name="label_format"]').forEach(function(r){r.checked=false;}); clearLabelErr(); }
+    refreshAddress();
+    recalc();
+  }
+  function clearLabelErr(){ document.getElementById('labelerr').style.display='none'; }
+
+  function recount(){ document.getElementById('device_count').value = idx; }
+
+  function recalc() {
+    var lo = 0, hi = 0;
+    document.querySelectorAll('#devices input[type=checkbox]:checked').forEach(function(c){
+      lo += parseFloat(c.dataset.low) || 0;
+      hi += parseFloat(c.dataset.high) || 0;
+    });
+    ['inbound','outbound'].forEach(function(id){
+      var o = document.getElementById(id).selectedOptions[0];
+      var v = o ? (parseFloat((''+o.dataset.cost).replace(/[^0-9.]/g,'')) || 0) : 0;
+      lo += v; hi += v;
+    });
+    function money(n){ return '$' + (n % 1 === 0 ? n : n.toFixed(2)); }
+    document.getElementById('total').textContent =
+      (Math.abs(lo - hi) < 0.001) ? money(lo) : (money(lo) + '\u2013' + money(hi));
+  }
+
+  function validateForm() {
+    if (addrRequired()) {
+      var fields = ['address1','city','state','postal_code'];
+      for (var k = 0; k < fields.length; k++) {
+        var el = document.getElementById(fields[k]);
+        if (el && !el.value.trim()) {
+          document.getElementById('addrwrap').open = true;
+          document.getElementById('shipnote').style.display = 'block';
+          el.scrollIntoView({behavior:'smooth', block:'center'});
+          el.focus();
+          return false;
+        }
+      }
+    }
+    var o = document.getElementById('inbound').selectedOptions[0];
+    var qrCapable = o && o.dataset.ship === '1' && o.dataset.qr === '1';
+    if (qrCapable) {
+      var picked = document.querySelector('input[name="label_format"]:checked');
+      if (!picked) {
+        document.getElementById('labelfmt').style.display = 'block';
+        document.getElementById('labelerr').style.display = 'block';
+        document.getElementById('labelfmt').scrollIntoView({behavior:'smooth', block:'center'});
+        return false;
+      }
+    }
+    return true;
+  }
+
+  addDevice();
+  rebuildShipping();
+  </script>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base_public.html" %}
+{% block title %}Track a repair{% endblock %}
+{% block tagline %}Check your repair status{% endblock %}
+{% block body %}
+
+{% if repaired_count and repaired_count > 0 %}
+<div class="panel pad" style="text-align:center; margin-bottom:14px; background:var(--surface-2,#f1f1f4);">
+  <div style="font-size:18px; font-weight:700;">More than {{ "{:,}".format(repaired_count) }} devices repaired, and counting!</div>
+</div>
+{% endif %}
+
+{% if result %}
+  {% include "_status_card.html" %}
+  <p class="alt"><a href="{{ url_for('track') }}">Check another repair</a></p>
+{% else %}
+  <div class="panel pad">
+    <form method="post">
+      <label class="field">
+        <span class="lab">Repair number</span>
+        <input type="text" name="repair_number" placeholder="R-1001" required autofocus>
+      </label>
+      <label class="field">
+        <span class="lab">Last name</span>
+        <input type="text" name="last_name" required>
+      </label>
+      <button class="btn" type="submit" style="width:100%; justify-content:center;">Check status</button>
+    </form>
+  </div>
+  {% if searched %}<div class="flash error" style="margin-top:16px;">No repair found with that number and last name. Double-check both and try again.</div>{% endif %}
+  <p class="alt">Need a new repair? <a href="{{ url_for('request_form') }}">Submit a request</a>.{% if portal_on %} Have several repairs? <a href="{{ url_for('portal_login') }}">Sign in to see them all</a>.{% endif %}</p>
+{% endif %}
+
+{% endblock %}

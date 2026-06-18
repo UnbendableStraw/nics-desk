@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}{{ r.repair_number }}{% endblock %}
+{% block body %}
+
+<div class="pagehead">
+  <div>
+    <h1><span class="rnum" style="font-size:20px">{{ r.repair_number }}</span></h1>
+    <p><a href="{{ url_for('customer_detail', cid=r.customer_id) }}">{{ r.first_name }} {{ r.last_name }}</a> · {{ r.device or 'device not set' }}</p>
+  </div>
+  <div>
+    {% set c = STATUS_COLORS.get(r.status, 'slate') %}
+    <span class="pill {{ c }}"><span class="dot"></span>{{ r.status }}</span>
+    <a class="btn ghost sm" href="{{ url_for('repair_label', rid=r.id) }}" target="_blank">⎙ Print label</a>
+  </div>
+</div>
+
+{% if r.warranty_of or warranty_children %}
+<div class="banner" style="background:var(--surface-2,#f5f5f7); display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
+  <span>🛡️</span>
+  <span>
+    {% if r.warranty_of %}Warranty repair for <a href="{{ url_for('repair_detail', rid=r.warranty_of) }}">{{ r.warranty_of_number }}</a>.{% endif %}
+    {% if warranty_children %}Warranty repair{{ 's' if warranty_children|length > 1 }} from this ticket:
+      {% for w in warranty_children %}<a href="{{ url_for('repair_detail', rid=w.id) }}">{{ w.repair_number }}</a>{{ ', ' if not loop.last }}{% endfor %}.{% endif %}
+  </span>
+</div>
+{% endif %}
+
+<div class="grid2">
+  <!-- LEFT -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <div class="panel pad">
+      <h2>Update status</h2>
+      <form method="post" action="{{ url_for('repair_status', rid=r.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <label class="field"><span class="lab">New status</span>
+          <select name="status">{% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s==r.status }}>{{ s }}</option>{% endfor %}</select>
+        </label>
+        <label class="field"><span class="lab">Internal note (optional)</span><input type="text" name="note" placeholder="Ordered screen, ETA Friday…"></label>
+        <div class="lab">Notify the customer</div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:6px 0;">
+          <input type="checkbox" name="notify_imessage" style="width:auto;" {{ 'disabled' if not r.phone }} checked> iMessage {% if not r.phone %}<span class="muted">(no phone)</span>{% endif %}
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:14px; margin:0 0 14px;">
+          <input type="checkbox" name="notify_email" style="width:auto;" {{ 'disabled' if not (r.email and email_ok) }}> Email {% if not r.email %}<span class="muted">(no email)</span>{% elif not email_ok %}<span class="muted">(set up SMTP)</span>{% endif %}
+        </label>
+        <button class="btn" type="submit">Save update</button>
+      </form>
+    </div>
+
+    <!-- Estimated total -->
+    <div class="panel pad">
+      <h2>Estimated total</h2>
+      <table class="tickets" style="margin:0 0 6px;">
+        <tbody>
+          <tr><td>Issues</td><td style="text-align:right;">{{ issues_total or '$0' }}</td></tr>
+          <tr><td>Additional services</td><td style="text-align:right;">{{ services_total or '$0' }}</td></tr>
+          <tr><td>Shipping &amp; handling</td><td style="text-align:right;">{{ shipping_total or '$0' }}</td></tr>
+          <tr style="font-weight:700; border-top:2px solid var(--border,#e3e3e8);"><td>Estimated total</td><td style="text-align:right; font-size:17px;">{{ estimate_total or '$0' }}</td></tr>
+        </tbody>
+      </table>
+      <div class="help">This total updates automatically from the issues, services, and shipping below.</div>
+    </div>
+
+    <!-- Issues -->
+    <div class="panel pad">
+      <h2>Issues on this ticket</h2>
+      {% if attached_issues %}
+      <table class="tickets" style="margin-bottom:8px;">
+        <tbody>
+        {% for i in attached_issues %}
+          <tr>
+            <td>{{ i.name }}</td><td style="width:90px;">{{ i.estimated_cost or '—' }}</td>
+            <td style="width:80px; text-align:right;">
+              <form method="post" action="{{ url_for('repair_issue_remove', rid=r.id, iid=i.id) }}" style="margin:0;">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="muted" style="margin-top:0;">No issues attached yet.</p>{% endif %}
+      {% if available_issues %}
+      <form method="post" action="{{ url_for('repair_issue_add', rid=r.id) }}" style="display:flex; gap:8px; margin-top:6px;">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <select name="issue_id" style="flex:1;">{% for i in available_issues %}<option value="{{ i.id }}">{{ i.name }}{% if i.estimated_cost %} · {{ i.estimated_cost }}{% endif %}</option>{% endfor %}</select>
+        <button class="btn" type="submit">Add issue</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <!-- Additional services -->
+    <div class="panel pad">
+      <h2>Additional services</h2>
+      {% if attached_services %}
+      <table class="tickets" style="margin-bottom:8px;">
+        <tbody>
+        {% for s in attached_services %}
+          <tr>
+            <td>{{ s.name }}</td><td style="width:90px;">{{ s.cost or '—' }}</td>
+            <td style="width:80px; text-align:right;">
+              <form method="post" action="{{ url_for('repair_service_remove', rid=r.id, sid=s.id) }}" style="margin:0;">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="muted" style="margin-top:0;">None added.</p>{% endif %}
+      {% if available_services %}
+      <form method="post" action="{{ url_for('repair_service_add', rid=r.id) }}" style="display:flex; gap:8px; margin-top:6px;">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <select name="service_id" style="flex:1;">{% for s in available_services %}<option value="{{ s.id }}">{{ s.name }}{% if s.cost %} · {{ s.cost }}{% endif %}</option>{% endfor %}</select>
+        <button class="btn" type="submit">Add service</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <!-- Send a message -->
+    <div class="panel pad">
+      <h2>Send a message</h2>
+      <form method="post" action="{{ url_for('repair_message', rid=r.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <label class="field" style="max-width:220px;"><span class="lab">Channel</span>
+          <select name="channel" id="chan" onchange="toggleChan()">
+            <option value="imessage" {{ 'disabled' if not r.phone }}>iMessage</option>
+            <option value="email" {{ 'disabled' if not (r.email and email_ok) }}>Email</option>
+          </select>
+        </label>
+        {% if msg_templates %}
+        <label class="field" style="max-width:260px;"><span class="lab">Start from a template</span>
+          <select id="tmplpick" onchange="useTemplate()">
+            <option value="">— None (default update) —</option>
+            {% for t in msg_templates %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <label class="field" id="subjwrap" style="display:none;"><span class="lab">Subject</span><input type="text" name="subject" value="{{ email_subject }}"></label>
+        <textarea name="body" id="msgbody" rows="3">{{ msg_preview }}</textarea>
+        <div class="help" style="margin:6px 0 12px;">Edit freely before sending.{% if can('catalog') %} Manage <a href="{{ url_for('templates_page') }}">templates</a>.{% endif %}</div>
+        <button class="btn" type="submit">Send</button>
+      </form>
+    </div>
+
+    {% if can('settings') %}
+    <div class="panel pad">
+      <h2>Invoicing</h2>
+      {% if invoices %}
+      <ul style="list-style:none; padding:0; margin:0 0 12px;">
+        {% for inv in invoices %}
+        <li style="display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--border,#eee);">
+          <span>{{ inv.currency }} {{ inv.amount }} → {{ inv.recipient }}<div class="muted" style="font-size:12px;">{{ inv.status }} · {{ fmt_dt(inv.created_at) }}</div></span>
+          {% if inv.view_url %}<a class="btn ghost sm" href="{{ inv.view_url }}" target="_blank" rel="noopener">View</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if paypal_ready %}
+      <a class="btn" href="{{ url_for('repair_invoice', rid=r.id) }}">{{ 'Send another invoice' if invoices else 'Create PayPal invoice' }}</a>
+      {% else %}
+      <p class="muted" style="margin:0;">Connect PayPal in <a href="{{ url_for('settings_page') }}">Settings</a> to send invoices auto-filled from this repair.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Per-repair chat with the customer -->
+    <div class="panel pad" id="chat">
+      <h2>Customer chat</h2>
+      <p class="muted" style="margin-top:0; font-size:13px;">A back-and-forth the customer sees when signed in to their portal. Separate from one-off iMessage/email updates above.</p>
+      <div class="chat-thread" style="display:flex; flex-direction:column; gap:8px; max-height:320px; overflow:auto; margin-bottom:12px;">
+        {% for m in chat %}
+        <div style="align-self:{{ 'flex-end' if m.sender=='shop' else 'flex-start' }}; max-width:80%;">
+          <div style="background:{{ 'var(--accent,#2f6fed)' if m.sender=='shop' else 'var(--surface-2,#eee)' }}; color:{{ '#fff' if m.sender=='shop' else 'inherit' }}; padding:8px 11px; border-radius:12px; white-space:pre-wrap; word-break:break-word;">{{ m.body }}</div>
+          <div class="muted" style="font-size:11px; margin-top:2px; text-align:{{ 'right' if m.sender=='shop' else 'left' }};">{{ m.author }}{% if m.via and m.via != 'app' %} · via {{ 'iMessage' if m.via=='imessage' else 'email' }}{% endif %} · {{ fmt_dt(m.created_at) }}</div>
+        </div>
+        {% else %}
+        <p class="muted" style="margin:0;">No messages yet. Say hello — the customer will see it in their portal.</p>
+        {% endfor %}
+      </div>
+      <form method="post" action="{{ url_for('repair_chat', rid=r.id) }}" style="display:flex; gap:8px; align-items:flex-end;">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <textarea name="body" rows="2" placeholder="Write a message…" required style="flex:1;"></textarea>
+        <button class="btn" type="submit">Post</button>
+      </form>
+    </div>
+
+    <div class="panel pad">
+      <h2>Activity</h2>
+      <ul class="timeline">
+        {% for u in history %}
+          <li><div class="when">{{ fmt_dt(u.created_at) }} <span class="chan">· {{ u.channel }}</span></div>
+          <div class="what">{% if u.status %}<strong>{{ u.status }}</strong> — {% endif %}{{ u.note }}</div></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <div class="panel pad qrwrap">
+      <h2 style="text-align:left">Device tag</h2>
+      <img class="qr" src="{{ url_for('qr_image', token=r.public_token) }}" alt="QR for {{ r.repair_number }}">
+      <img class="bar" src="{{ url_for('barcode_image', number=r.repair_number) }}" alt="Barcode {{ r.repair_number }}">
+      <div class="help" style="margin-top:8px;">Scan the QR to open this ticket; the barcode works with USB/Bluetooth scanners.</div>
+      <a class="btn ghost sm" style="margin-top:10px;" href="{{ url_for('repair_label', rid=r.id) }}" target="_blank">⎙ Print sticker</a>
+    </div>
+
+    <!-- Shipping label (upload) -->
+    <div class="panel pad">
+      <h2>Shipping label</h2>
+      {% if label_pref %}<div class="help" style="margin-bottom:8px;">Customer asked for: <strong>{{ 'Printable PDF' if label_pref=='pdf' else 'Scannable QR code' }}</strong></div>{% endif %}
+
+      {% if shipments %}
+      <table class="tickets" style="margin-bottom:12px;">
+        <tbody>
+        {% for sh in shipments %}
+          <tr>
+            <td>
+              <div><strong>{{ 'PDF label' if sh.fmt=='pdf' else 'QR / label image' }}</strong>{% if sh.carrier %} · {{ sh.carrier }}{% endif %}</div>
+              <div class="muted" style="font-size:12px;">{{ 'customer → us' if sh.direction=='in' else 'us → customer' }}{% if sh.tracking %} · {{ sh.tracking }}{% endif %} · {{ fmt_dt(sh.created_at) }}</div>
+              <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                {% if sh.has_pdf %}<a class="btn ghost sm" href="{{ url_for('shipment_pdf', sid=sh.id) }}" target="_blank">View PDF</a>{% endif %}
+                {% if sh.has_qr %}<a class="btn ghost sm" href="{{ url_for('shipment_qr', sid=sh.id) }}" target="_blank">View image</a>{% endif %}
+                <form method="post" action="{{ url_for('shipment_message', sid=sh.id) }}" style="display:inline; margin:0;">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                  <input type="hidden" name="channel" value="imessage">
+                  <button class="btn sm" type="submit" {{ 'disabled' if not r.phone }}>Text to customer</button>
+                </form>
+                <form method="post" action="{{ url_for('shipment_message', sid=sh.id) }}" style="display:inline; margin:0;">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                  <input type="hidden" name="channel" value="email">
+                  <button class="btn sm" type="submit" {{ 'disabled' if not (r.email and email_ok) }}>Email to customer</button>
+                </form>
+                <form method="post" action="{{ url_for('shipment_delete', sid=sh.id) }}" style="display:inline; margin:0;">
+                  <input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="btn danger sm" type="submit">✕</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('shipment_create', rid=r.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <label class="field"><span class="lab">Upload a label you made <span class="muted">(PDF to print, or an image / QR to scan)</span></span>
+          <input type="file" name="label" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" required>
+        </label>
+        <div class="row">
+          <label class="field"><span class="lab">This label is for</span>
+            <select name="direction">
+              <option value="in">Customer shipping it to us</option>
+              <option value="out">Us shipping it back</option>
+            </select>
+          </label>
+          <label class="field"><span class="lab">Tracking # <span class="muted">(optional)</span></span><input type="text" name="tracking" placeholder="9400 1118 9922 3…"></label>
+        </div>
+        <label class="field" style="max-width:160px;"><span class="lab">Carrier <span class="muted">(optional)</span></span><input type="text" name="carrier" placeholder="USPS / UPS"></label>
+        <button class="btn" type="submit">Upload label</button>
+        <div class="help" style="margin-top:6px;">After uploading, use “Text to customer” or “Email to customer” to send it.</div>
+      </form>
+    </div>
+
+    <!-- Details (incl. address) -->
+    <div class="panel pad">
+      <h2>Details</h2>
+      <form method="post" action="{{ url_for('repair_edit', rid=r.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <div class="row">
+          <label class="field"><span class="lab">First</span><input type="text" name="first_name" value="{{ r.first_name }}"></label>
+          <label class="field"><span class="lab">Last</span><input type="text" name="last_name" value="{{ r.last_name }}"></label>
+        </div>
+        <label class="field"><span class="lab">Phone</span><input type="tel" name="phone" value="{{ r.phone }}"></label>
+        <label class="field"><span class="lab">Email</span><input type="email" name="email" value="{{ r.email }}"></label>
+        <label class="field"><span class="lab">Address line 1</span><input type="text" name="address1" value="{{ r.address1 }}"></label>
+        <label class="field"><span class="lab">Address line 2</span><input type="text" name="address2" value="{{ r.address2 }}"></label>
+        <div class="row">
+          <label class="field"><span class="lab">City</span><input type="text" name="city" value="{{ r.city }}"></label>
+          <label class="field" style="max-width:90px;"><span class="lab">State</span><input type="text" name="state" value="{{ r.state }}"></label>
+          <label class="field" style="max-width:120px;"><span class="lab">ZIP</span><input type="text" name="postal_code" value="{{ r.postal_code }}"></label>
+        </div>
+        <div class="row">
+          <label class="field" style="max-width:110px;"><span class="lab">Country</span><input type="text" name="country" value="{{ r.country or 'US' }}"></label>
+          <label class="field"><span class="lab">Device</span><input type="text" name="device" value="{{ r.device }}"></label>
+        </div>
+        <label class="field"><span class="lab">Serial / asset</span><input type="text" name="serial" value="{{ r.asset_serial or '' }}" placeholder="Add a serial to log an asset"></label>
+        <div class="row">
+          <label class="field"><span class="lab">Getting it to me</span>
+            <select name="inbound_method">
+              <option value="">— Not set —</option>
+              {% for m in methods_in %}<option value="{{ m.label }}" {{ 'selected' if r.inbound_method==m.label }}>{{ m.label }}</option>{% endfor %}
+              {% if r.inbound_method and r.inbound_method not in methods_in|map(attribute='label')|list %}<option value="{{ r.inbound_method }}" selected>{{ r.inbound_method }}</option>{% endif %}
+            </select>
+          </label>
+          <label class="field"><span class="lab">Getting it back</span>
+            <select name="outbound_method">
+              <option value="">— Not set —</option>
+              {% for m in methods_out %}<option value="{{ m.label }}" {{ 'selected' if r.outbound_method==m.label }}>{{ m.label }}</option>{% endfor %}
+              {% if r.outbound_method and r.outbound_method not in methods_out|map(attribute='label')|list %}<option value="{{ r.outbound_method }}" selected>{{ r.outbound_method }}</option>{% endif %}
+            </select>
+          </label>
+        </div>
+        <label class="field"><span class="lab">Notes / customer comments</span><textarea name="issue" rows="2">{{ r.issue }}</textarea></label>
+        <div class="help" style="margin:-4px 0 10px;">Estimated total (<strong>{{ estimate_total or '$0' }}</strong>) is calculated from the issues, services, and shipping above.</div>
+        <button class="btn ghost" type="submit">Save details</button>
+      </form>
+      <div class="help" style="margin-top:12px;">Customer tracking link:<br><a href="{{ track_url }}" target="_blank">{{ track_url }}</a></div>
+    </div>
+
+    {% if can('repairs.delete') %}
+    <div class="panel pad">
+      <h2 style="color:var(--danger,#c0392b);">Danger zone</h2>
+      <p class="muted" style="margin-top:0;">Deleting removes this ticket and its history. This can't be undone.</p>
+      <form method="post" action="{{ url_for('repair_delete', rid=r.id) }}" onsubmit="return confirm('Delete repair {{ r.repair_number }}? This cannot be undone.');" style="margin:0;">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="btn danger" type="submit">Delete repair</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<p style="margin-top:20px;"><a href="{{ url_for('dashboard') }}">← Back to repairs</a></p>
+
+<script>
+var TEMPLATES = {{ msg_templates|tojson }};
+function currentTemplate() {
+  var sel = document.getElementById('tmplpick');
+  if (!sel || !sel.value) return null;
+  return TEMPLATES.find(function(x){ return String(x.id) === String(sel.value); }) || null;
+}
+function useTemplate() {
+  var t = currentTemplate();
+  if (t) document.getElementById('msgbody').value = t.body;
+}
+function toggleChan() {
+  var email = document.getElementById('chan').value === 'email';
+  document.getElementById('subjwrap').style.display = email ? 'block' : 'none';
+  var t = currentTemplate();
+  if (t) { document.getElementById('msgbody').value = t.body; return; }
+  document.getElementById('msgbody').value = email ? {{ email_body|tojson }} : {{ msg_preview|tojson }};
+}
+</script>
+{% endblock %}

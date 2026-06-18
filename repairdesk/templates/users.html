@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% set active = 'users' %}
+{% block title %}Staff users{% endblock %}
+{% block body %}
+
+<div class="pagehead"><div><h1>Staff users</h1>
+  <p>Accounts and roles for people who work tickets. <strong>Owner</strong> can do everything including managing users and settings; <strong>Manager</strong> manages repairs, customers, catalogs and settings but not users; <strong>Technician</strong> works tickets but can't change catalogs, settings, users, or delete records.</p></div></div>
+
+<div class="panel pad" style="max-width:860px; margin-bottom:20px;">
+  <h2>Add a user</h2>
+  <form method="post" action="{{ url_for('users_add') }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <label class="field" style="margin:0; width:150px;"><span class="lab">Username</span><input type="text" name="username" placeholder="jordan" autocomplete="off" required></label>
+    <label class="field" style="margin:0; flex:1; min-width:150px;"><span class="lab">Display name</span><input type="text" name="name" placeholder="Jordan Lee"></label>
+    <label class="field" style="margin:0; width:140px;"><span class="lab">Role</span>
+      <select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if r=='technician' }}>{{ role_labels[r] }}</option>{% endfor %}</select></label>
+    <label class="field" style="margin:0; width:150px;"><span class="lab">Password</span><input type="password" name="password" autocomplete="new-password" required></label>
+    <button class="btn" type="submit">Add user</button>
+  </form>
+  <div class="help" style="margin-top:6px;">They sign in with this username and password. Password is at least 6 characters.</div>
+</div>
+
+<div class="panel pad" style="max-width:860px;">
+  <h2>Users</h2>
+  {% for u in users %}
+  <div class="panel pad" style="margin-bottom:10px; {{ '' if u.active else 'opacity:.6;' }}">
+    <form method="post" action="{{ url_for('users_update', uid=u.id) }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <div style="min-width:130px;">
+        <div class="rnum">{{ u.username }}{% if me and me.id==u.id %} <span class="muted" style="font-size:11px;">(you)</span>{% endif %}</div>
+        <div class="muted" style="font-size:12px;">since {{ fmt_dt(u.created_at) }}</div>
+      </div>
+      <label class="field" style="margin:0; flex:1; min-width:140px;"><span class="lab">Display name</span><input type="text" name="name" value="{{ u.name }}"></label>
+      <label class="field" style="margin:0; width:140px;"><span class="lab">Role</span>
+        <select name="role">{% for r in roles %}<option value="{{ r }}" {{ 'selected' if r==u.role }}>{{ role_labels[r] }}</option>{% endfor %}</select></label>
+      <label class="check" style="margin:0 0 8px;"><input type="checkbox" name="active" {{ 'checked' if u.active }}> Active</label>
+      <label class="field" style="margin:0; width:150px;"><span class="lab">Reset password</span><input type="password" name="password" autocomplete="new-password" placeholder="(unchanged)"></label>
+      <button class="btn ghost sm" type="submit">Save</button>
+    </form>
+    {% if not (me and me.id==u.id) %}
+    <form method="post" action="{{ url_for('users_delete', uid=u.id) }}" onsubmit="return confirm('Delete user “{{ u.username }}”? This can't be undone.');" style="display:inline; margin:6px 0 0;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button class="btn danger sm" type="submit">Delete</button>
+    </form>
+    {% else %}
+    <div class="help" style="margin-top:6px;">Change your own password under <a href="{{ url_for('settings_page') }}">Settings</a>.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base_public.html" %}
+{% block title %}Repair {{ result.repair_number }}{% endblock %}
+{% block tagline %}Your repair status{% endblock %}
+{% block body %}
+  {% include "_status_card.html" %}
+
+  {% if can_chat %}
+  <div class="panel pad" id="chat">
+    <h2 style="margin-top:0;">Messages with the shop</h2>
+    <div class="chat-thread" style="display:flex; flex-direction:column; gap:8px; max-height:340px; overflow:auto; margin-bottom:12px;">
+      {% for m in chat %}
+      <div style="align-self:{{ 'flex-end' if m.sender=='customer' else 'flex-start' }}; max-width:82%;">
+        <div style="background:{{ 'var(--accent,#2f6fed)' if m.sender=='customer' else 'var(--surface-2,#eee)' }}; color:{{ '#fff' if m.sender=='customer' else 'inherit' }}; padding:8px 11px; border-radius:12px; white-space:pre-wrap; word-break:break-word;">{{ m.body }}</div>
+        <div class="muted" style="font-size:11px; margin-top:2px; text-align:{{ 'right' if m.sender=='customer' else 'left' }};">{{ 'You' if m.sender=='customer' else (m.author or 'Shop') }}{% if m.via and m.via != 'app' %} · via {{ 'iMessage' if m.via=='imessage' else 'email' }}{% endif %} · {{ fmt_dt(m.created_at) }}</div>
+      </div>
+      {% else %}
+      <p class="muted" style="margin:0;">No messages yet. Send the shop a note about this repair.</p>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('portal_chat', rid=result.id) }}" style="display:flex; gap:8px; align-items:flex-end;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <textarea name="body" rows="2" placeholder="Write a message…" required style="flex:1;"></textarea>
+      <button class="btn" type="submit">Send</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <p class="alt"><a href="{{ url_for('track') }}">Look up a different repair</a>{% if customer %} · <a href="{{ url_for('portal_home') }}">Your repairs</a>{% endif %}</p>
+{% endblock %}
