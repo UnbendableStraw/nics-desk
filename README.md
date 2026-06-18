@@ -1,4 +1,4 @@
-# RepairDesk
+# Nic's Desk
 
 A self-hosted CRM for a repair shop, designed to run on **your Mac** so it can send
 **native iMessages** to customers about their repairs. Everything — database, web
@@ -231,10 +231,8 @@ estimated turnaround time" under Settings → Customer-facing info. They show at
 the new-request page so customers know when to expect a reply and their device back.
 
 **"More than X devices repaired" counter**: the request and tracking pages can show a
-*More than X devices repaired, and counting!* banner. The count is the sum of every device
-type's counter — which already bakes in high starting numbers, so a type that starts at
-5,000 counts as 5,000 already done — plus an optional extra baseline you can set. Toggle it
-and tune the baseline under Settings → Customer-facing info.
+*More than X devices repaired, and counting!* banner. The count is the sum of every device repair
+type's counter.
 
 **Editable statuses**: the repair stages (Received, Diagnosing, etc.) live under Settings →
 Repair statuses. Rename, recolor, reorder, add, or remove them — renaming updates existing
@@ -251,8 +249,7 @@ HomePod and its tickets become `AHP-5005`. "Other / not listed" falls back to th
 prefix, and a multi-device request still yields one number per device.
 
 **Asset photos**: upload labeled condition photos to an asset (Assets page) — e.g. "On
-arrival — back" — with a gallery and per-photo delete. (Customer-visible asset photos arrive
-with the customer-portal phase.)
+arrival — back" — with a gallery and per-photo delete.
 
 ---
 
